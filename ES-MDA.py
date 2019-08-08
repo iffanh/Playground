@@ -23,9 +23,6 @@ mLength = 10 #the length of the parameter m
 dLength = 5 #the length of the data d
 nEnsemble = 100 #the number of ensembles
 
-#stdevM = 1. #standard deviation of the parameter
-
-
 alpha_max = 1000.
 maxIter = 40
 
@@ -56,46 +53,53 @@ ddDD = np.zeros(nEnsemble)
 for p in range(maxIter):
     alpha[p] = (2**(maxIter-p))
 
-#Generating the initial ensemble
+#Generating the initial parameter (base case)
 for i in range(mLength):
+    a = i/mLength
+#Some functions that might be used
 #    mInit[i] = np.random.uniform(0,1)*1.
 #    mInit[i] = np.random.uniform(0,1)*0.005
-#    mInit[i] = i**2 + 1
-    mInit[i] = 1/(i + 1)
+#    mInit[i] = a**2 + 1
+    mInit[i] = a/(a**2 + 1)
 
 
 #--------------------------------------------------FUNCTIONS-------------------------------------------------------------#
 #Calculating the observation based on the parameter. This is function d = g(m)
 #the non-linear functions obsData = gFunctions(parameters, dLength)
+#In the reservoir, the function is much more complex and needs a reservoir simulator to solve it (Eclipse, Intersect, etc.)
+
 def gFunctions(parameters, dLength):
     predData = np.zeros(dLength)
     
     mSum = np.sum(parameters)
-    for i in range(dLength):    
-        predData[i] = mSum/(i + 1)
+    for i in range(dLength):
+        a = i/dLength
+#       predData[i] = mSum/(a + 1)
+        predData[i] = mSum*(a+1)**2/(100)
         
     return predData
    
-#In the reservoir, the function is much more complex and needs a reservoir simulator to solve it (Eclipse, Intersect, etc.)
-
-
 #----------------------------------------------THE 'ANSWERS'-------------------------------------------------------------#
-    
+
+#This parts consists of parameters that are considered the truth value of the model. 
+#Consequently, by plugging it into the gFunction() we would get the true observed data (data without noise) 
+
 for i in range(mLength):
-#    mAnswer[i] = i**3 + i**2 + 5
-#    mAnswer[i] = i**2 + 10*i + 5
-#    mAnswer[i] = np.sin(i*np.pi/6)
-#    mAnswer[i] = np.cos(i*np.pi/6)
-#    mAnswer[i] = 1/(i**2 + 3)
-    mAnswer[i] = np.exp(i/10)
+    a = i/mLength
+#    mAnswer[i] = a**3 + a**2 + 5
+#    mAnswer[i] = a**2 + 10*a + 5
+#    mAnswer[i] = np.sin(a*np.pi/6)
+#    mAnswer[i] = np.cos(a*np.pi/6)
+#    mAnswer[i] = 1/(a**2 + 3)
+    mAnswer[i] = np.exp(a/10)
 
 dAnswer[:] = gFunctions(mAnswer[:], dLength)
 
-stdevD = np.diag(dAnswer*0.1)
-stdevM = np.multiply(mAnswer,0.05)
+stdevD = np.diag(dAnswer*0.001)
+stdevM = np.multiply(mAnswer,0.1)
 
 #------------------------------------------------POPULATING ENSEMBLE-----------------------------------------------------#
-#Populate ensemble 
+#Populate ensemble based on mean and standard deviation (we assume normal distribution for the noise in measurement)
 
 #Perturb the parameter
 for i in range(mLength):
@@ -103,34 +107,23 @@ for i in range(mLength):
     
 m = mPrior #Initial ensemble
 
-    
 #Calculate prediction
 for j in range(nEnsemble):
     dPrior[:,j] = gFunctions(mPrior[:,j], dLength)
     d[:,j] = gFunctions(mPrior[:,j], dLength)
+
+#d = dPrior
     
-
-
-##Perturb the data
-#for i in range(dLength):
-#    z[i,:] = np.random.normal(0, stdevD[i,i], nEnsemble)
-
-#dInit = dPrior #Initial ensemble
-#covarianceD = np.cov(d)
-
 #------------------------------------------MAIN LOOP STARTS HERE---------------------------------------------------------#
 
 
 for p in range(maxIter):
     #Get data
-#    for j in range(nEnsemble):
-#        obsData[:,j] = dAnswer[:] + (alpha[p]**(0.5))*(np.matmul(sp.fractional_matrix_power(stdevD,1/2),(z[:,j])))
     
+    #Adding measurement noise to the true data    
     for i in range(dLength):
         obsData[i,:] = np.random.normal(dAnswer[i], np.abs(stdevD[i,i]), nEnsemble)
-
     
-        
     #Calculate Average and Covariance MD and Covariance DD
     for i in range(mLength):
         summationM = np.sum(mPrior[i,:])
@@ -153,38 +146,36 @@ for p in range(maxIter):
     covarianceMD = ddMD / (nEnsemble - 1.)
     covarianceDD = ddDD / (nEnsemble - 1.)
 
-    
-#-----------------------------------------------UPDATE--------------------------------------------------------------------#
-
+    #Main update equation
     for j in range(nEnsemble):
         dummyMat = np.matmul(covarianceMD,np.linalg.inv(covarianceDD + alpha[p]*stdevD)) 
         dummyVec = obsData[:,j] - dPrior[:,j]
         mPred[:,j] = mPrior[:,j] + np.matmul(dummyMat,dummyVec)
 
-    mPrior = mPred
     
-    #Calculate prediction
+    #Calculate new forecast based on the predicted parameters
     for j in range(nEnsemble):
-        dPrior[:,j] = gFunctions(mPrior[:,j], dLength)
+        dPrior[:,j] = gFunctions(mPred[:,j], dLength)
+    
+    #Update the prior parameter for next iteration
+    mPrior = mPred
         
+    #Plotting for change of average of the parameters
     meanP = np.average(mPred, axis=1)
     plt.figure(3)
     plt.plot(meanP)
     plt.draw()
-#    plt.pause(0.03)
-#    plt.clf()
-
 
 #-------------------------------------------------OUTPUT-----------------------------------------------------------------#
 
+#Plot of the ensemble of the parameters
 plt.figure(1)
-
-
 plt.plot(m, 'g-')
 plt.plot(mPred, 'b-')
 plt.plot(mAnswer, 'r-')
 plt.show()
 
+#Plot of the ensemble of the data
 plt.figure(2)
 plt.plot(d, 'g-')
 plt.plot(dPrior, 'b-')
