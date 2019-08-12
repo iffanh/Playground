@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 #Constants
 
 mLength = 10 #the length of the parameter m
-dLength = 5 #the length of the data d
+dLength = 6 #the length of the data d
 nEnsemble = 100 #the number of ensembles
 
 alpha_max = 1000.
@@ -59,8 +59,8 @@ for i in range(mLength):
 #Some functions that might be used
 #    mInit[i] = np.random.uniform(0,1)*1.
 #    mInit[i] = np.random.uniform(0,1)*0.005
-#    mInit[i] = a**2 + 1
-    mInit[i] = a/(a**2 + 1)
+    mInit[i] = a**2 + 1
+#    mInit[i] = a/(a**2 + 1)
 
 
 #--------------------------------------------------FUNCTIONS-------------------------------------------------------------#
@@ -87,11 +87,11 @@ def gFunctions(parameters, dLength):
 for i in range(mLength):
     a = i/mLength
 #    mAnswer[i] = a**3 + a**2 + 5
-#    mAnswer[i] = a**2 + 10*a + 5
+    mAnswer[i] = a**2 + 10*a + 5
 #    mAnswer[i] = np.sin(a*np.pi/6)
 #    mAnswer[i] = np.cos(a*np.pi/6)
 #    mAnswer[i] = 1/(a**2 + 3)
-    mAnswer[i] = np.exp(a/10)
+#    mAnswer[i] = np.exp(a/10)
 
 dAnswer[:] = gFunctions(mAnswer[:], dLength)
 
