@@ -6,25 +6,56 @@ Created on Mon Aug  5 12:35:46 2019
 """
 
 """
-This is an attempt to make simulate ES-MDA based on a paper Analysis of the Performance of Ensemble-based Assimilation of Production and Seismic Data by Alexandre Anoze Emerick 
+This is an attempt to simulate ES-MDA based on a paper Analysis of the Performance of Ensemble-based Assimilation of Production and Seismic Data by Alexandre Anoze Emerick 
 https://www.researchgate.net/profile/Alexandre_Emerick/publication/292213980_Analysis_of_the_Performance_of_Ensemble-based_Assimilation_of_Production_and_Seismic_Data/links/5a878fe3aca272017e5abf36/Analysis-of-the-Performance-of-Ensemble-based-Assimilation-of-Production-and-Seismic-Data.pdf)
+
+In this script, we will predict a vector of model parameters, mAnswer ∈ R^M, by data conditioning to the observed data, dAnswer ∈ R^D. 
+The true parameters, mAnswer, as well as the true data, dAnswer, are hidden. The relationship between the model parameters and the 
+data are defined in some function gFunction() that spans from R^M -> R^D. Here, we assume that we know the function perfectly (no systematic error)
+
+We start the simulation by having an initial prediction of parameter, mInit, and the corresponding prediction data, dPrior. 
+We populate the initial ensemble by distributing the model parameters, mPrior, by sampling it from Gaussian distribution. mPrior ~ N(mInit, stdevM)
+The observed data also has some uncertainty due to measurement noise. Here, the noise is assumed to be Gaussian. obsData ~ N(dAnswer, stdevD)
+
+(Control) parameters
+    ----------
+    mLength : int
+        The number of model parameter
+    dLength : int 
+        The number of data
+    nEnsemble : int
+        The number of element in an ensemble
+    maxIter : int
+        The number of ES-MDA iteration
+    stdevD : float
+        Standard deviation of the observed data
+    stdevM : float
+        Standard deviation of the model parameter in the initial ensemble
+    
+    
+Returns
+    -------
+    1. Plot of the average of the ensemble over time
+    2. Plot of the true parameter, and the corresponding initial ensemble, and ensemble at last iteration
+    3. Plot of the true observed data, and the corresponding initial ensemble, and ensemble at last iteration
+    '''
+
 """
 
 #------------------------------------------------INTRODUCTIONS----------------------------------------------------------#
 #Import libraries
 
 import numpy as np
-import scipy.linalg as sp
 import matplotlib.pyplot as plt
 
 #Constants
 
 mLength = 10 #the length of the parameter m
-dLength = 6 #the length of the data d
+dLength = 5 #the length of the data d
 nEnsemble = 100 #the number of ensembles
 
 alpha_max = 1000.
-maxIter = 40
+maxIter = 4
 
 #Declaring variables
 
@@ -55,12 +86,13 @@ for p in range(maxIter):
 
 #Generating the initial parameter (base case)
 for i in range(mLength):
+    ''' Here, you can initialize your own model parameter'''
     a = i/mLength
 #Some functions that might be used
 #    mInit[i] = np.random.uniform(0,1)*1.
 #    mInit[i] = np.random.uniform(0,1)*0.005
-    mInit[i] = a**2 + 1
-#    mInit[i] = a/(a**2 + 1)
+#    mInit[i] = a**2 + 1
+    mInit[i] = a/(a**2 + 1)
 
 
 #--------------------------------------------------FUNCTIONS-------------------------------------------------------------#
@@ -68,7 +100,10 @@ for i in range(mLength):
 #the non-linear functions obsData = gFunctions(parameters, dLength)
 #In the reservoir, the function is much more complex and needs a reservoir simulator to solve it (Eclipse, Intersect, etc.)
 
+
 def gFunctions(parameters, dLength):
+    ''' Here, you can make your own functions!'''
+
     predData = np.zeros(dLength)
     
     mSum = np.sum(parameters)
@@ -85,13 +120,15 @@ def gFunctions(parameters, dLength):
 #Consequently, by plugging it into the gFunction() we would get the true observed data (data without noise) 
 
 for i in range(mLength):
+    ''' Here, you store the true value of the model parameter'''
+
     a = i/mLength
 #    mAnswer[i] = a**3 + a**2 + 5
-    mAnswer[i] = a**2 + 10*a + 5
+#    mAnswer[i] = a**2 + 10*a + 5
 #    mAnswer[i] = np.sin(a*np.pi/6)
 #    mAnswer[i] = np.cos(a*np.pi/6)
 #    mAnswer[i] = 1/(a**2 + 3)
-#    mAnswer[i] = np.exp(a/10)
+    mAnswer[i] = np.exp(a/10)
 
 dAnswer[:] = gFunctions(mAnswer[:], dLength)
 
@@ -164,6 +201,11 @@ for p in range(maxIter):
     meanP = np.average(mPred, axis=1)
     plt.figure(3)
     plt.plot(meanP)
+
+    plt.title('(averaged) model parameters')
+    plt.xlabel('i-th parameter')
+    plt.ylabel('m[i]')
+
     plt.draw()
 
 #-------------------------------------------------OUTPUT-----------------------------------------------------------------#
@@ -173,6 +215,11 @@ plt.figure(1)
 plt.plot(m, 'g-')
 plt.plot(mPred, 'b-')
 plt.plot(mAnswer, 'r-')
+
+plt.title('model parameters')
+plt.xlabel('i-th parameter')
+plt.ylabel('m[i]')
+
 plt.show()
 
 #Plot of the ensemble of the data
@@ -180,6 +227,10 @@ plt.figure(2)
 plt.plot(d, 'g-')
 plt.plot(dPrior, 'b-')
 plt.plot(dAnswer, 'r-')
+
+plt.title('data')
+plt.xlabel('i-th data')
+plt.ylabel('d[i]')
 plt.show()
 
 print('green = initial ensemble')
