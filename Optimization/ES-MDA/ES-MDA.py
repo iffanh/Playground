@@ -200,9 +200,10 @@ for p in range(maxIter):
     #Plotting for change of average of the parameters
     meanP = np.average(mPred, axis=1)
     plt.figure(3)
-    plt.plot(meanP)
+    plt.plot(meanP, label='iter = %i' %(p))
+    plt.legend()
 
-    plt.title('(averaged) model parameters')
+    plt.title('(Averaged) model parameters')
     plt.xlabel('i-th parameter')
     plt.ylabel('m[i]')
 
@@ -216,7 +217,7 @@ plt.plot(m, 'g-')
 plt.plot(mPred, 'b-')
 plt.plot(mAnswer, 'r-')
 
-plt.title('model parameters')
+plt.title('Model parameters')
 plt.xlabel('i-th parameter')
 plt.ylabel('m[i]')
 
@@ -228,7 +229,7 @@ plt.plot(d, 'g-')
 plt.plot(dPrior, 'b-')
 plt.plot(dAnswer, 'r-')
 
-plt.title('data')
+plt.title('Data')
 plt.xlabel('i-th data')
 plt.ylabel('d[i]')
 plt.show()
