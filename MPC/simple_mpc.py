@@ -69,7 +69,6 @@ def calculate_next_state(a:float, b:float, x_prev:float, u_curr:float):
     """
     return a*x_prev + b*u_curr
 
-
 def build_vector(N:int, a:float, x0:float):
     """
     Function responsible for constructing the b vector
