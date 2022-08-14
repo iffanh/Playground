@@ -24,8 +24,8 @@ class NelderMeadSolver:
 
     def check_input_validity(self, arr:np.ndarray, f:callable):
 
+        # Check mappability
         for col in range(arr.shape[1]):
-
             vec = arr[:,col]
             try:
                 f(vec)
@@ -81,8 +81,13 @@ class NelderMeadSolver:
             print("Best : %s" %self.f(self.arr[:,0]))
             print("StandardError : %s" %stderr)
 
+            if i == self.maxIter-1:
+                print("Solver terminated after reaching maximum iteration. ")
+                self.solution = self.arr
+
             if stderr < self.tol:
-                self.sol_arr = self.arr
+                print("Solution found due to tolerance value.")
+                self.solution = self.arr
                 break
 
             centroid = self.calculate_centroid(self.arr)
@@ -112,23 +117,3 @@ class NelderMeadSolver:
                     else:
                         self.arr = self.replace_all_points(self.arr, self.omega)
 
-        self.sol_arr = self.arr
-
-def objfunc(vec):
-    """
-    A function that maps the input vector to objective funcdtion scalar
-    """
-    conjArr = np.array([[1, -0.2, 3], [2, 1, -1.4], [4, -2.3, 5]])
-
-    scalar = np.dot(np.dot(vec.T, conjArr), vec)
-
-    return scalar
-
-if __name__ == '__main__':
-
-    # Define scalars
-    arr = np.array([[1, 2, 1], [0, 0, 1], [-1, 1, 0]])
-
-    nms = NelderMeadSolver(arr, objfunc, maxIter=200)
-    nms.solve()
-    print(nms.sol_arr)
