@@ -2,8 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 """
-The problem formulates a simple feedback MPC where we use the Riccati equation to 
-obtain Kalman matrix for the control. 
+The problem formulates a simple feedback MPC where we use the Riccati equation to
+obtain Kalman matrix for the control.
 
 x_{t+1} = A_t x_t + B_t u_t
 u_t = -K_t x_t
@@ -24,9 +24,9 @@ def run_simple_feedback_mpc(N:int, a:float, b:float, q:float, r:float, x0:float,
     x_list, u_list = calculate_states(K_list, a, b, x0)
 
 
-    states = {"P" : P_list, 
-              "K" : K_list, 
-              "x" : x_list, 
+    states = {"P" : P_list,
+              "K" : K_list,
+              "x" : x_list,
               "u" : u_list}
     plot_states(states)
 
@@ -87,7 +87,7 @@ def solve_riccati(ind, P, a, b, q, r, P_list) -> list:
         return P_list[::-1]
 
     P = q + a*P*a/(1 + b*b*P/r)
-    
+
 
     return solve_riccati(ind-1, P, a, b, q, r, P_list)
 
