@@ -5,83 +5,114 @@ This is an attempt to create a nelder-mead solver for a non-linear optimization
 problem
 
 """
-def check_input_validity(arr:np.ndarray, f:callable):
 
-    for col in range(arr.shape[1]):
+class NelderMeadSolver:
+    def __init__(self, arr:np.ndarray=None, f:callable=None, alpha:float=1.0, gamma:float=2.0, rho:float=0.5, omega=0.5, tol:float=10E-5, maxIter:int=100) -> None:
 
-        vec = arr[:,col]
-        try:
-            f(vec)
-        except:
-            raise Exception("Array and the map function is not compatible")
+        self.arr = arr
+        self.f = f
+        self.alpha = alpha
+        self.gamma = gamma
+        self.rho = rho
+        self.omega = omega
+        self.tol = tol
+        self.maxIter = maxIter
 
-def order_by_objective_function(arr:np.ndarray, f:callable):
+        self.sol_arr = None
 
-    sorted_f, sorted_col = zip(*sorted([(f(arr[:,col]), col) for col in range(arr.shape[1])], key=lambda x:x[0]))
-    print(sorted_f, sorted_col)
-    arr = arr[:, sorted_col]
-    return arr
+        pass
 
-def calculate_centroid(arr:np.ndarray):
-    centroid = np.mean(arr[:,:-1], axis=1)
-    return centroid
+    def check_input_validity(self, arr:np.ndarray, f:callable):
 
-def calculate_reflected_point(centroid, alpha, vec):
-    return centroid + alpha*(centroid - vec)
+        for col in range(arr.shape[1]):
 
-def calculate_expanded_point(centroid, gamma, r_point):
-    return centroid + gamma*(r_point - centroid)
+            vec = arr[:,col]
+            try:
+                f(vec)
+            except:
+                raise Exception("Array and the map function is not compatible")
 
-def calculate_contracted_point(centroid, rho, r_point):
-    return centroid + rho*(r_point - centroid)
+    def order_by_objective_function(self, arr:np.ndarray, f:callable):
 
-def replace_all_points(arr:np.ndarray, omega):
-    arr[:, 1:] = arr[:,[0]] + omega*(arr[:, 1:] - arr[:, [0]])
-    return arr
+        _, sorted_col = zip(*sorted([(f(arr[:,col]), col) for col in range(arr.shape[1])], key=lambda x:x[0]))
+        arr = arr[:, sorted_col]
+        return arr
 
-def run_nelder_mead(arr:np.ndarray, f:callable, alpha:float=1.0, gamma:float=2.0, rho:float=0.5, omega=0.5, tol:float=10E-5, maxIter:int=100):
+    def calculate_centroid(self, arr:np.ndarray):
+        centroid = np.mean(arr[:,:-1], axis=1)
+        return centroid
 
-    """
-    arr  : an array of input (state) where each column represents a point
-    f   : a function that maps to the objective function that we would like to minimize
-    tol : maximum tolerance to
-    """
+    def calculate_reflected_point(self, centroid, alpha, vec):
+        return centroid + alpha*(centroid - vec)
 
-    check_input_validity(arr, f)
+    def calculate_expanded_point(self, centroid, gamma, r_point):
+        return centroid + gamma*(r_point - centroid)
 
-    for i in range(maxIter):
+    def calculate_contracted_point(self, centroid, rho, r_point):
+        return centroid + rho*(r_point - centroid)
 
-        print("------- Iteration %s -------" %i)
-        print(arr)
-        arr = order_by_objective_function(arr, f)
-        centroid = calculate_centroid(arr)
-        r_point = calculate_reflected_point(centroid, alpha, arr[:, -1])
-        print(f(r_point))
-        if f(r_point) >= f(arr[:, 0]) and f(r_point) < f(arr[:, -2]):
-            arr[:, -1] = r_point
+    def replace_all_points(self, arr:np.ndarray, omega):
+        arr[:, 1:] = arr[:,[0]] + omega*(arr[:, 1:] - arr[:, [0]])
+        return arr
 
-        elif f(r_point) < f(arr[:,0]):
-            e_point = calculate_expanded_point(centroid, gamma, r_point)
-            if f(e_point) < f(r_point):
-                arr[:, -1] = e_point
+    def calculate_standard_error(self, arr:np.ndarray, f:callable):
+
+        obj_values = [f(arr[:,col]) for col in range(arr.shape[1])]
+        mean_obj_values = np.mean(obj_values)
+
+        test = np.sqrt(np.sum([(ov-mean_obj_values)**2 for ov in obj_values])/(arr.shape[1] - 1))
+        return test
+
+    def solve(self):
+
+        """
+        arr  : an array of input (state) where each column represents a point
+        f   : a function that maps to the objective function that we would like to minimize
+        tol : maximum tolerance to
+        """
+
+        self.check_input_validity(self.arr, self.f)
+
+        for i in range(self.maxIter):
+
+            print("------- Iteration %s -------" %i)
+            self.arr = self.order_by_objective_function(self.arr, self.f)
+            stderr = self.calculate_standard_error(self.arr, self.f)
+            print("Best : %s" %self.f(self.arr[:,0]))
+            print("StandardError : %s" %stderr)
+
+            if stderr < self.tol:
+                self.sol_arr = self.arr
+                break
+
+            centroid = self.calculate_centroid(self.arr)
+            r_point = self.calculate_reflected_point(centroid, self.alpha, self.arr[:, -1])
+            if self.f(r_point) >= self.f(self.arr[:, 0]) and self.f(r_point) < self.f(self.arr[:, -2]):
+                self.arr[:, -1] = r_point
+
+            elif self.f(r_point) < self.f(self.arr[:,0]):
+                e_point = self.calculate_expanded_point(centroid, self.gamma, r_point)
+                if self.f(e_point) < self.f(r_point):
+                    self.arr[:, -1] = e_point
+                else:
+                    self.arr[:, -1] = r_point
+
             else:
-                arr[:, -1] = r_point
+                if self.f(r_point) < self.f(self.arr[:, -1]):
+                    c_point = self.calculate_contracted_point(centroid, self.rho, r_point)
+                    if self.f(c_point) < self.f(r_point):
+                        self.arr[:, -1] = c_point
+                    else:
+                        arr = self.replace_all_points(self.arr, self.omega)
 
-        else:
-            if f(r_point) < f(arr[:, -1]):
-                c_point = calculate_contracted_point(centroid, rho, r_point)
-                if f(c_point) < f(r_point):
-                    arr[:, -1] = c_point
-                else:
-                    arr = replace_all_points(arr, omega)
+                elif self.f(r_point) >= self.f(self.arr[:,-1]):
+                    c_point = self.calculate_contracted_point(centroid, self.rho, self.arr[:, -1])
+                    if self.f(c_point) < self.f(self.arr[:, -1]):
+                        self.arr[:, -1] = c_point
+                    else:
+                        self.arr = self.replace_all_points(self.arr, self.omega)
 
-            elif f(r_point) >= f(arr[:,-1]):
-                c_point = calculate_contracted_point(centroid, rho, arr[:, -1])
-                if f(c_point) < f(arr[:, -1]):
-                    arr[:, -1] = c_point
-                else:
-                    arr = replace_all_points(arr, omega)
-    return arr
+        self.sol_arr = self.arr
 
 def objfunc(vec):
     """
@@ -98,4 +129,6 @@ if __name__ == '__main__':
     # Define scalars
     arr = np.array([[1, 2, 1], [0, 0, 1], [-1, 1, 0]])
 
-    run_nelder_mead(arr, objfunc, maxIter=200)
+    nms = NelderMeadSolver(arr, objfunc, maxIter=200)
+    nms.solve()
+    print(nms.sol_arr)
