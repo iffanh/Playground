@@ -10,13 +10,16 @@
 """
 
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
 import itertools
+import scipy
 import scipy.special
-from typing import Tuple, List
+import functools
+from scipy.optimize import minimize, NonlinearConstraint
+from typing import Any, Tuple, List
 import sympy as sp
 from sympy import lambdify
+
+from generate_poised_sets import SampleSets
 
 class PolynomialBase:
     def __init__(self, symbol, feval:callable) -> None:
@@ -29,6 +32,28 @@ class LagrangePolynomial:
         
         self.symbol = symbol
         self.feval = feval
+        self.max_sol = None
+        
+    def _func_to_minimize(self, x:np.ndarray):
+        return -np.abs(self.feval(*x))
+    
+    def cons_f(self, x:np.ndarray, center:np.ndarray) -> float:
+        return np.linalg.norm(x - center)
+    
+    def _define_nonlinear_constraint(self, rad:float, center:np.ndarray) -> NonlinearConstraint:
+        return NonlinearConstraint(functools.partial(self.cons_f, center), 0, rad)
+        
+    def _find_max_given_boundary(self, x0:np.ndarray, rad:float, center:np.ndarray) -> Tuple[Any, float]:
+        
+        if self.max_sol:
+            pass
+        else:
+            nlinear_constraint = self._define_nonlinear_constraint(rad, center)
+            self.max_sol = minimize(self._func_to_minimize, x0, method='trust-constr', constraints=[nlinear_constraint])
+        
+        self.min_lambda = self.feval(*self.max_sol.x)
+        
+        return self.max_sol, self.min_lambda
         
 class ModelPolynomial:
     def __init__(self, symbol, feval:callable) -> None:
@@ -57,16 +82,21 @@ class LagrangePolynomials:
             .polynomial_basis : List of the polynomial basis, wrapped in PolynomialBase class
         
         """
-
-        self.f = f
+        
+        self.sample_set = SampleSets(v)
+        
+        self.v = self.sample_set.y
+        self.f = f[self.sample_set.sorted_index]
+        
         self.N = v.shape[0]
         self.P = v.shape[1]
         
         self.multiindices = self._get_multiindices(self.N, pdegree, self.P)
         self.coefficients = self._get_coefficients(self.multiindices)
         self.polynomial_basis, self.input_symbols = self._get_polynomial_basis(self.multiindices, self.coefficients)
-        self.lagrange_polynomials = self._build_lagrange_polynomials(self.polynomial_basis, v, self.input_symbols)
-        self.model_polynomial = self._build_model_polynomial(self.lagrange_polynomials, f, self.input_symbols)
+        self.lagrange_polynomials = self._build_lagrange_polynomials(self.polynomial_basis, self.v, self.input_symbols)
+        self.model_polynomial = self._build_model_polynomial(self.lagrange_polynomials, self.f, self.input_symbols)
+
         
     def interpolate(self, x:np.ndarray) -> float:
         """Interpolate using the interpolation model given the input x. 
@@ -80,6 +110,25 @@ class LagrangePolynomials:
         """
         return self.model_polynomial.feval(*x)
         
+    def poisedness(self):
+        return self._get_poisedness(self.lagrange_polynomials, self.sample_set)
+        
+    def _get_poisedness(self, lagrange_polynomials, sample_set):
+        
+        rad = sample_set.ball.rad
+        
+        Lambda = 0
+        for lp in lagrange_polynomials:
+            sol, feval = lp._find_max_given_boundary(self.v[:,0], rad, self.v[:,0])
+            
+            if np.abs(feval) > Lambda:
+                Lambda = np.abs(feval)
+            
+        if Lambda == 0:
+            raise Exception(f"Poisedness (Lambda) is 0. Something is wrong.")
+        
+        return Lambda
+    
     def _build_model_polynomial(self, lagrange_polynomials:List[LagrangePolynomial], f:np.ndarray, input_symbols:list) -> ModelPolynomial:
         """ Generate model polynomial, m(x), given the lagrange polynomials and the interpolation set value
 
