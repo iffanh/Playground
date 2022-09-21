@@ -80,7 +80,8 @@ class LagrangePolynomials:
             .lagrange_polynomials : All the lagrange polynomials, lambda_i(x), wrapped in LagrangePolynomial class
             .model_polynomial : Ultimate polynomial model for the given interpolation set, wrpaped in ModelPolynomial class
             .polynomial_basis : List of the polynomial basis, wrapped in PolynomialBase class
-        
+            .get_poisedness : Calculate (minimum) poisedness of the given set
+            
         """
         
         self.sample_set = SampleSets(v)
@@ -110,7 +111,15 @@ class LagrangePolynomials:
         """
         return self.model_polynomial.feval(*x)
         
-    def poisedness(self):
+    def poisedness(self) -> float:
+        """Calculate the minimum poisedness given the set of interpolation points.'
+           The poisedness is calculated as: 
+           
+                Lambda = max_{0 <= i <= p} max_{x \in B} |lambda_i(x)|
+
+        Returns:
+            float: Minimum poisedness of the given interpolation set
+        """
         return self._get_poisedness(self.lagrange_polynomials, self.sample_set)
         
     def _get_poisedness(self, lagrange_polynomials, sample_set):
@@ -119,7 +128,7 @@ class LagrangePolynomials:
         
         Lambda = 0
         for lp in lagrange_polynomials:
-            sol, feval = lp._find_max_given_boundary(self.v[:,0], rad, self.v[:,0])
+            _, feval = lp._find_max_given_boundary(self.v[:,0], rad, self.v[:,0])
             
             if np.abs(feval) > Lambda:
                 Lambda = np.abs(feval)
@@ -186,7 +195,6 @@ class LagrangePolynomials:
             lpolynomial = var_matrix.det()/full_det
             lpolynomials.append(LagrangePolynomial(lpolynomial, lambdify(input_symbols, lpolynomial, 'numpy')))
         
-        print(f"Lagrange polynomials are: {[p.symbol for p in lpolynomials]}")
         
         return lpolynomials
     
@@ -215,7 +223,9 @@ class LagrangePolynomials:
             # (phi(x) sympy symbol, phi(x) evaluation), function evaluation called using a numpy array x, phi(*x)
             basis.append(PolynomialBase(b, lambdify(input_symbols, b, 'numpy'))) 
 
-        print(f"The polynomial basis (phi) are: {[d.symbol for d in basis]}")
+        print(f"\nThe polynomial basis (phi) are:")
+        for i, d in enumerate(basis):
+            print(f"phi_{i} : {d.symbol}")
 
         return basis, input_symbols
 
