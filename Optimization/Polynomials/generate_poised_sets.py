@@ -1,11 +1,3 @@
-"""
-This script should be able to: 
-- Find the "best" center data point.
-- Find a \Lambda-poised set given initial interpolation set
-- Calculate \Lambda
-"""
-
-
 import numpy as np
 
 class Ball: 
@@ -13,7 +5,22 @@ class Ball:
         self.center = center
         self.rad = rad
         
+    def generate_vectors_with_uniform_angles(self, N:int) -> np.ndarray:
+        
+        # 1 center and N in a circle
+        a = -1/(N-1)
+        
+        A = np.ones((N-1, N-1))*a
+        np.fill_diagonal(A, 1)
+        
+        L = np.linalg.cholesky(A) 
+        v = -np.sum(L.T, axis=1)[np.newaxis]
+    
+        vectors = np.concatenate((L.T, v.T), axis=1)
 
+        return vectors
+    
+    
 class SampleSets:
     def __init__(self, y:np.ndarray) -> None:
         
