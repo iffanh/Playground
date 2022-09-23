@@ -18,7 +18,7 @@ from typing import Tuple
 
 class Polynomials:
     def __init__(self, v:np.ndarray, f:np.ndarray, pdegree:int = 2):
-        """ This class should be able to generate lagrange polynomials given the samples
+        """ This class should be able to generate polynomials given the samples
 
         Args:
             v (np.ndarray): an N x (P+1) array in which each column j in P represent an interpolation point. 
@@ -37,6 +37,7 @@ class Polynomials:
         
         self.multiindices = self._get_multiindices(self.N, pdegree, self.P)
         self.coefficients = self._get_coefficients(self.multiindices)
+        
         self.det, self.matrix = self._build_matrix(v, self.multiindices, self.coefficients)
         self.alpha = self._solve_for_alpha(self.matrix, f)
         self._check_interpolation_quality(v, f)
@@ -72,11 +73,11 @@ class Polynomials:
         """
         
         for i in range(v_known.shape[1]):
-            assert self.interpolate(v_known[:,i]) == f_known[i]
-    
+            pass
+
     
     def _solve_for_alpha(self, matrix:np.ndarray, f:np.ndarray) -> np.ndarray:
-        return np.linalg.solve(matrix, f)
+        return np.linalg.lstsq(matrix, f)[0]
     
     def _build_variable_matrix(self, ind:int, x:np.ndarray, v:np.ndarray, multiindices:list, coefficients:list):
         
@@ -111,16 +112,19 @@ class Polynomials:
             Tuple[float, np.ndarray]: the determinant and the matrix M
         """
         
-        
         matrix = np.zeros((v.shape[1], len(coefficients)))
         for i in range(v.shape[1]): # number of data points
             for j in range(len(coefficients)): # number of possible combination of basis
                 matrix[i,j] = self._get_basis_func_eval(v[:,i], multiindices[j], coefficients[j])
         
-        det = np.linalg.det(matrix)
-        if det == 0.0:
-            raise Exception("The matrix M is singular")
-        
+        if v.shape[1] == len(coefficients):
+            det = np.linalg.det(matrix)
+            if det == 0.0:
+                raise Exception("The matrix M is singular")
+        else:
+            det = None
+            #TODO: what to do when the matrix M is not a square matrix?
+            
         return det, matrix
 
     def _get_basis_func_eval(self, x:np.ndarray, index:list, coeff:float) -> float:
