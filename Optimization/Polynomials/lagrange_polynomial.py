@@ -94,6 +94,7 @@ class LagrangePolynomials:
         
         self.multiindices = self._get_multiindices(self.N, pdegree, self.P)
         self.coefficients = self._get_coefficients(self.multiindices)
+        # Possible improvement is to let user decide which basis they want, e.g. for underdetermined problems (Ch. 5)
         self.polynomial_basis, self.input_symbols = self._get_polynomial_basis(self.multiindices, self.coefficients)
         self.lagrange_polynomials = self._build_lagrange_polynomials(self.polynomial_basis, self.v, self.input_symbols)
         self.model_polynomial = self._build_model_polynomial(self.lagrange_polynomials, self.f, self.input_symbols)
@@ -179,22 +180,14 @@ class LagrangePolynomials:
             input = data_points[:,i]
             entry = [d.feval(*input) for d in basis]
             matrix.append(entry)
-        self.full_matrix = sp.Matrix(matrix)
-        full_det = self.full_matrix.det()
+        basis_matrix = sp.Matrix(matrix)
+        basis_vector = sp.Matrix([d.symbol for d in basis])
+        lagrange_matrix = basis_matrix*(basis_matrix.T*basis_matrix).inv()*basis_vector # Eq (4.7)
         
-        # create the var matrix: matrix in which for each set i in the interpolation set, 
-        # create another set of Y_i = Y \ y_i \cup x
-        self.var_matrices = []
         lpolynomials = []
-        for i in range(data_points.shape[1]):
-            var_matrix = matrix[:]
-            var_matrix[i] = [d.feval(*input_symbols) for d in basis]
-            var_matrix = sp.Matrix(var_matrix)
-            self.var_matrices.append(var_matrix)
-            
-            lpolynomial = var_matrix.det()/full_det
+        for i in range(lagrange_matrix.shape[0]):
+            lpolynomial = lagrange_matrix[i, :][0]
             lpolynomials.append(LagrangePolynomial(lpolynomial, lambdify(input_symbols, lpolynomial, 'numpy')))
-        
         
         return lpolynomials
     
@@ -250,17 +243,15 @@ class LagrangePolynomials:
             p (int): number of data points
 
         Returns:
-            list: all possible combination of the multiindices
+            list: all possible combination of the multiindices, Combination(n + d, d)
         """
         range_tuples = tuple([range(d + 1)]*n)
         multiindices = self._product(*range_tuples)
          
         multiindices = [ind for ind in multiindices if np.sum(ind) <= d]
         
-        if self.P < len(multiindices):
+        if p < len(multiindices):
             raise Exception(f"The length of interpolation points: {p} is less than the minimum requirement : {len(multiindices)}")
-        elif self.P > len(multiindices):
-            raise Exception(f"The length of interpolation points: {p} is greater than the minimum requirement : {len(multiindices)}")
         
         return multiindices 
          
