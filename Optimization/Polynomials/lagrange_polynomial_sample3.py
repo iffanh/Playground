@@ -1,3 +1,4 @@
+from textwrap import fill
 from lagrange_polynomial import LagrangePolynomials
 from generate_poised_sets import Ball
 import numpy as np
@@ -13,12 +14,12 @@ if __name__ == '__main__':
     print(f"==============================================")
     
     levels = [-10, -5, -2, -1, 1, 2, 5, 10]
-    pdegree = 1
+    pdegree = 2
     
     # vt = np.array([[0.524, 0.0006], [0.032, 0.323], [0.187, 0.890], [0.854, 0.853], [0.982, 0.368], [0.774, 0.918]]).T
     # vt = np.array([[0.01, 0.02], [0.02, 0.01], [0.5, 0.5], [0.99, 0.98], [0.98, 0.98], [0.97, 0.97]]).T
-    vt = np.array([[0.05, 0.1], [0.1, 0.05], [0.5, 0.5], [0.95, 0.9], [0.9, 0.95], [0.85, 0.85]]).T
-    # vt = np.array([[0.524, 0.0006], [0.032, 0.323], [0.187, 0.890], [0.5, 0.5], [0.982, 0.368], [0.774, 0.918]]).T
+    # vt = np.array([[0.05, 0.1], [0.1, 0.05], [0.5, 0.5], [0.95, 0.9], [0.9, 0.95], [0.85, 0.85]]).T
+    vt = np.array([[0.524, 0.0006], [0.032, 0.323], [0.187, 0.890], [0.5, 0.5], [0.982, 0.368], [0.774, 0.918]]).T
     results = []
     for i in range(vt.shape[1]):
         x = vt[:, i]
@@ -64,7 +65,7 @@ if __name__ == '__main__':
     func = myfunc([x, y])
     func[intindices] = nms3.model_polynomial.feval(x, y)[intindices]
     
-    circle2 = plt.Circle(center, radius, color='blue')
+    circle2 = plt.Circle(center, radius, color='black', fill=False)
     ax.add_patch(circle2)
     ax.contour(x, y, func, levels)
     plt.scatter(vt[0, :], vt[1, :])
