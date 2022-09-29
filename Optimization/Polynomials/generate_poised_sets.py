@@ -1,7 +1,7 @@
 import numpy as np
 
 class Ball: 
-    def __init__(self, center:float, rad:float) -> None:
+    def __init__(self, center:float=None, rad:float=None) -> None:
         self.center = center
         self.rad = rad
         
