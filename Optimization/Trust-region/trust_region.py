@@ -1,0 +1,154 @@
+from lagrange_polynomial import LagrangePolynomials
+import numpy as np
+from typing import Any, Tuple, List
+from sympy import lambdify
+from scipy.optimize import minimize, NonlinearConstraint, LinearConstraint
+
+class SubProblem:
+    def __init__(self, polynomial:LagrangePolynomials, radius=2.0) -> None:
+        
+        # Right now the path is solved from solving the lambda, other options are sufficient decrease using pu and pb
+        self.polynomial = polynomial
+        print('m(x) = ', self.polynomial.model_polynomial.symbol)
+        self.path = self._solve_path_from_lambda(radius=radius)
+        print(f'step = {self.path}')
+        print(f'step size = {np.linalg.norm(self.path)}')
+        
+    def _calculate_path(self, tau:float, g:np.ndarray, B:np.ndarray) -> np.ndarray:
+        
+        if tau <= 1 and tau >= 0:
+            path = tau*self._calculate_pu(g, B)
+        elif tau <= 2 and tau > 1:
+            path = self._calculate_pu + (tau - 1)*self._calculate_pb(g, B)
+        else:
+            raise Exception(f"tau value has to be between 0 and 2. Got {tau}")
+        return path
+        
+    def _calculate_pu(self, g:np.ndarray, B:np.ndarray) -> np.ndarray:
+        a = np.matmul(g.T, g)
+        b = np.matmul(np.matmul(g.T, B), g)
+        return -(a/b)*g     
+
+    def _calculate_pb(self, g:np.ndarray, B:np.ndarray) -> np.ndarray:
+        return -np.matmul(np.linalg.pinv(B), g)
+    
+    def _construct_nominators(self, gradient:np.ndarray, decom_mat:np.ndarray) -> Tuple[np.ndarray, bool]:
+        is_hard_case = False
+        nominators = []
+        for i in range(decom_mat.shape[1]):
+            nominator = np.matmul(decom_mat[:, i], gradient)
+            
+            if nominator == 0:
+                is_hard_case = True
+            
+            nominators.append(nominator)
+
+        return np.array(nominators), is_hard_case
+    
+    def _construct_function_r(self, eigenval:np.ndarray, nominators:np.ndarray, radius:float) -> callable:
+        
+        resx = lambda x: np.abs((np.power((eigenval[0]+x)*(eigenval[1]+x), 2)/np.sum([np.power(nominators[0]*(eigenval[1]+x), 2), np.power(nominators[1]*(eigenval[0]+x), 2)])) - (1/np.power(radius, 2)))
+        
+        return resx
+    
+    def _solve_path_from_lambda(self, radius:float):
+        
+        gradient, Hessian = self.polynomial.gradient(self.polynomial.sample_set.ball.center), self.polynomial.Hessian
+        
+        if np.linalg.norm(np.matmul(np.linalg.pinv(Hessian), gradient)) <= radius:
+            print('Inside the radius')
+            path = self._calculate_pb(gradient, Hessian)
+            print(f'step = {path}')
+            print(f'step size = {np.linalg.norm(path)}')
+        
+        else:
+            eigenvals, Q = np.linalg.eigh(Hessian) # print(np.matmul(np.matmul(decom_mat, np.diag(eigenvals)), decom_mat.T)) #reconstruction
+            nominators, is_hard_case = self._construct_nominators(gradient, Q)
+            
+            if is_hard_case:
+                print('Hard Case')
+                sol = -eigenvals[0]
+                tau = np.sqrt(radius**2 - (nominators[1]/(eigenvals[1] - eigenvals[0]))**2)
+                z = Q[:, 0]
+                
+                path = - (tau*z + (nominators[1]/(eigenvals[1] + sol.x[0]))*Q[:, 1])
+                
+                
+            else:
+                print('Not Hard Case')
+                resx = self._construct_function_r(eigenvals, nominators, radius)
+                x0 = -eigenvals[0] + 0.5
+                linear_constraint = LinearConstraint(np.ndarray([1]), lb=-eigenvals[0])
+                sol = minimize(resx, x0, method='SLSQP', constraints=[linear_constraint])
+                
+                path = - ((nominators[0]/(eigenvals[0] + sol.x[0]))*Q[:, 0] + (nominators[1]/(eigenvals[1] + sol.x[0]))*Q[:, 1])
+                
+
+        return path
+    
+class TrustRegion:
+    def __init__(self, dataset, results, func:callable) -> None:
+        
+        self.polynomial = LagrangePolynomials(dataset, results)
+        self.sp = None
+        
+        self.dataset = self.polynomial.v
+        self.results = self.polynomial.f
+        
+        self.rad = self.polynomial.sample_set.ball.rad # radius of trust region
+        self.center = self.polynomial.sample_set.ball.center # center of trust region
+        
+    
+    def run(self, max_radius=2.0, init_radius=1.0, eta=0.2):
+        
+        """ Algorithm: 
+        0. Initialization: Set constant variables
+            - max_radius = maximum radius allowed in the algorithm
+            - init_radius = initial radius of the system
+            - eta = threshold of acceptance of new point
+        1. Solve subproblem to obtain step p and step length |p|
+        2. Calculate new point: x_new = x_center + step
+        3. Compute f1 = f(x_center), f2 = f(x_new), m1 = m(x_center), and m2 = m(x_new)
+        4. Evaluate rho
+        5. Update radius
+        6. Update dataset
+        """
+        
+        
+        return 
+        
+    
+    def solve_subproblem(self, rad=None):
+        
+        if rad: 
+            self.sp = SubProblem(self.polynomial, radius=rad)
+        else:
+            self.sp = SubProblem(self.polynomial, radius=self.rad)
+        
+        
+    def model_evaluation(self, point):
+        return self.polynomial.model_polynomial.feval(*point)
+    
+    def get_new_radius(self, rho:float, step_size:float, max_radius:float, tol = 10E-5) -> float: # Numerical Optimization Algorithm 4.1
+        
+        if rho < 0.25:
+            self.new_rad = 0.25*self.rad
+        else: 
+            if rho > 0.75 and np.abs(step_size - self.rad) < tol:
+                self.new_rad = np.min([2*self.rad, max_radius])
+            else:
+                self.new_rad = self.rad
+        return self.new_rad
+    
+    def get_new_point(self, rho:float, eta:float) -> np.ndarray:
+        
+        if rho > eta:
+            self.new_point = self.center + self.sp.path
+        else:
+            self.new_point = self.center
+        
+        return self.new_point
+    
+    def calculate_rho_ratio(self, f1:float, f2:float, m1:float, m2:float) -> float:
+        
+        return (f1 - f2)/(m1 - m2)
