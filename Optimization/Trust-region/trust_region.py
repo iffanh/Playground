@@ -11,8 +11,7 @@ class SubProblem:
         self.polynomial = polynomial
         print('m(x) = ', self.polynomial.model_polynomial.symbol)
         self.path = self._solve_path_from_lambda(radius=radius)
-        print(f'step = {self.path}')
-        print(f'step size = {np.linalg.norm(self.path)}')
+        
         
     def _calculate_path(self, tau:float, g:np.ndarray, B:np.ndarray) -> np.ndarray:
         
@@ -81,8 +80,10 @@ class SubProblem:
                 linear_constraint = LinearConstraint(np.ndarray([1]), lb=-eigenvals[0])
                 sol = minimize(resx, x0, method='SLSQP', constraints=[linear_constraint])
                 
+                print(sol.x[0])
                 path = - ((nominators[0]/(eigenvals[0] + sol.x[0]))*Q[:, 0] + (nominators[1]/(eigenvals[1] + sol.x[0]))*Q[:, 1])
-                
+                print(f'step = {path}')
+                print(f'step size = {np.linalg.norm(path)}')
 
         return path
     
@@ -131,8 +132,8 @@ class TrustRegion:
     
     def get_new_radius(self, rho:float, step_size:float, max_radius:float, tol = 10E-5) -> float: # Numerical Optimization Algorithm 4.1
         
-        if rho < 0.25:
-            self.new_rad = 0.25*self.rad
+        if rho < 0.5:
+            self.new_rad = 0.5*self.rad
         else: 
             if rho > 0.75 and np.abs(step_size - self.rad) < tol:
                 self.new_rad = np.min([2*self.rad, max_radius])
@@ -141,7 +142,7 @@ class TrustRegion:
         return self.new_rad
     
     def get_new_point(self, rho:float, eta:float) -> np.ndarray:
-        
+            
         if rho > eta:
             self.new_point = self.center + self.sp.path
         else:

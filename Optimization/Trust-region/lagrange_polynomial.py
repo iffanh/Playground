@@ -53,14 +53,31 @@ class LagrangePolynomial:
         
         self.min_lambda = self.feval(*self.max_sol.x)
         
-        return self.max_sol, self.min_lambda
+        return self.max_sol.x, self.min_lambda
         
 class ModelPolynomial:
     def __init__(self, symbol, feval:callable) -> None:
         
         self.symbol = symbol
         self.feval = feval
-
+        
+class Poisedness:
+    def __init__(self, index, max_points, poisedness) -> None:
+        self.index = index # Index with the maximum poisedness
+        self.max_points = max_points
+        self.poisedness = poisedness
+        
+        self._validate_class()
+        
+    def _validate_class(self):
+        assert np.max(self.poisedness) == self.poisedness[self.index]
+    
+    def max_poisedness(self):
+        return np.max(self.poisedness)
+    
+    def point_to_max_poisedness(self):
+        return self.max_points[self.index]
+    
 
 class LagrangePolynomials:
     def __init__(self, v:np.ndarray, f:np.ndarray, pdegree:int = 2):
@@ -86,7 +103,7 @@ class LagrangePolynomials:
         
         self.sample_set = SampleSets(v, sort_type="function", f=f)
         
-        self.v = self.sample_set.y
+        self.y = self.sample_set.y
         self.f = f[self.sample_set.sorted_index]
         
         self.N = v.shape[0]
@@ -96,9 +113,11 @@ class LagrangePolynomials:
         self.coefficients = self._get_coefficients(self.multiindices)
         # Possible improvement is to let user decide which basis they want, e.g. for underdetermined problems (Ch. 5)
         self.polynomial_basis, self.input_symbols = self._get_polynomial_basis(self.multiindices, self.coefficients)
-        self.lagrange_polynomials = self._build_lagrange_polynomials(self.polynomial_basis, self.v, self.input_symbols)
+        self.lagrange_polynomials = self._build_lagrange_polynomials(self.polynomial_basis, self.y, self.input_symbols)
         self.model_polynomial = self._build_model_polynomial(self.lagrange_polynomials, self.f, self.input_symbols)
         self.gradient, self.Hessian = self._get_coefficients_from_expression(self.model_polynomial.symbol, self.input_symbols, pdegree)    
+        
+        self.index_of_largest_lagrangian_norm = None
         
     def interpolate(self, x:np.ndarray) -> float:
         """Interpolate using the interpolation model given the input x. 
@@ -112,32 +131,41 @@ class LagrangePolynomials:
         """
         return self.model_polynomial.feval(*x)
         
-    def poisedness(self) -> float:
+    def poisedness(self) -> Poisedness:
         """Calculate the minimum poisedness given the set of interpolation points.'
            The poisedness is calculated as: 
            
                 Lambda = max_{0 <= i <= p} max_{x \in B} |lambda_i(x)|
 
         Returns:
+            int: index of lagrange polynomial with the largest poisedness
             float: Minimum poisedness of the given interpolation set
         """
         return self._get_poisedness(self.lagrange_polynomials, self.sample_set)
         
-    def _get_poisedness(self, lagrange_polynomials, sample_set):
+    def _get_poisedness(self, lagrange_polynomials, sample_set) -> Poisedness:
         
         rad = sample_set.ball.rad
         
-        Lambda = 0
-        for lp in lagrange_polynomials:
-            _, feval = lp._find_max_given_boundary(self.v[:,0], rad, self.v[:,0])
+        Lambda = 0.0
+        index = 0
+        
+        Lambdas = []
+        max_sols = []
+        for i, lp in enumerate(lagrange_polynomials):
+            max_sol, feval = lp._find_max_given_boundary(self.y[:,0], rad, self.y[:,0])          
+            
+            max_sols.append(max_sol)
+            Lambdas.append(np.abs(feval))
             
             if np.abs(feval) > Lambda:
                 Lambda = np.abs(feval)
+                index = i
             
         if Lambda == 0:
             raise Exception(f"Poisedness (Lambda) is 0. Something is wrong.")
         
-        return Lambda
+        return Poisedness(index, max_sols, Lambdas)
     
     def _construct_b_apprx(self, b1:float, b2:float) -> np.ndarray:
         return np.array([b1, b2])
@@ -217,7 +245,7 @@ class LagrangePolynomials:
         for i in range(len(lagrange_polynomials)):
             polynomial_sum += lagrange_polynomials[i].symbol*f[i]
             
-        return ModelPolynomial(polynomial_sum, lambdify(input_symbols, polynomial_sum, 'numpy'))
+        return ModelPolynomial(polynomial_sum, lambdify(list(input_symbols), polynomial_sum, 'numpy'))
 
     def _build_lagrange_polynomials(self, basis:List[PolynomialBase], data_points:np.ndarray, input_symbols:list) -> List[LagrangePolynomial]:
         """ Responsible for generating the lagrange polynomials using Cramer's rule: 
@@ -317,3 +345,59 @@ class LagrangePolynomials:
          
     def _product(self, *argument):
         return itertools.product(*argument)
+    
+    def update_lagrange_polynomials(self, L:float=200.0):
+        # Algorithm 6.3
+        poisedness = self.poisedness()
+        Lambda = poisedness.max_poisedness()
+        print(Lambda)
+        if Lambda > L:
+            print(f"Yes. New point = {poisedness.point_to_max_poisedness()}")
+        else:
+            print(f"No. Y set is good.")
+        
+        return
+    
+class ModelImprovement:
+    def __init__(self) -> None:
+        pass
+    
+    # def update_lagrange_polynomials(self, k:int, y:np.ndarray, y_new:np.ndarray, polynomials:List[LagrangePolynomial]):
+    #     # Algorithm 6.1 
+        
+    #     new_polynomial = polynomials[k].symbol/polynomials[k].feval(*y_new)
+        
+    #     lpolynomials = []
+    #     for polynomial in polynomials:
+            
+    #         symbol = polynomial.symbol
+    #         new_symbol = symbol - polynomial.feval(*y_new)*new_polynomial
+    #         lpolynomials.append(LagrangePolynomial(new_symbol, lambdify(list(new_symbol.free_symbols), new_symbol, 'numpy')))
+            
+
+    #         # print(f"==================")
+    #         # print(f"symbol = {symbol}")
+    #         # print(f"new_symbol = {new_symbol}")
+          
+    #     # Switch point: Y* = Y \cup {y*_k} \ {y_k}  
+    #     y[:, k] = y_new
+            
+    #     self._check_lagrange_polynomials(y=y, polynomials=lpolynomials)
+             
+    #     return
+    
+    
+    
+    def _check_lagrange_polynomials(self, y:np.ndarray, polynomials:List[LagrangePolynomial]):
+        
+        for i, polynomial in enumerate(polynomials):
+            print(f"polynomial.symbol = {polynomial.symbol}")
+            for j in range(y.shape[1]):
+                eval = polynomial.feval(*y[:, j])
+                
+                print(y[:, j], i,j, eval)
+                
+                if i == j:
+                    assert np.abs(eval - 1) <= 10E-5
+                else:
+                    assert np.abs(eval) <= 10E-5
