@@ -84,7 +84,7 @@ class Poisedness:
     
 
 class LagrangePolynomials:
-    def __init__(self, v:np.ndarray, f:np.ndarray, pdegree:int = 2):
+    def __init__(self, v:np.ndarray, f:np.ndarray, pdegree:int = 2, sort_type:str='function'):
         """ This class should be able to generate lagrange polynomials given the samples
 
         Args:
@@ -105,7 +105,7 @@ class LagrangePolynomials:
             
         """
         
-        self.sample_set = SampleSets(v, sort_type="function", f=f)
+        self.sample_set = SampleSets(v, sort_type=sort_type, f=f)
         
         self.y = self.sample_set.y
         self.f = f[self.sample_set.sorted_index]
@@ -303,9 +303,7 @@ class LagrangePolynomials:
         """
 
         Ndim = len(exponents[0])
-        # print(f"Dimension length, N = {Ndim}")
         input_symbols = [sp.symbols('x%s'%(ind+1)) for ind in range(Ndim)]
-        # print(f"Symbols = {input_symbols}")
         basis = []
         for (exps, coef) in zip(exponents, coefficients):
             b = 1
@@ -315,10 +313,6 @@ class LagrangePolynomials:
             
             # (phi(x) sympy symbol, phi(x) evaluation), function evaluation called using a numpy array x, phi(*x)
             basis.append(PolynomialBase(b, lambdify(input_symbols, b, 'numpy'))) 
-
-        # print(f"\nThe polynomial basis (phi) are:")
-        # for i, d in enumerate(basis):
-        #     print(f"phi_{i} : {d.symbol}")
 
         return basis, input_symbols
 
@@ -358,6 +352,17 @@ class LagrangePolynomials:
     def _product(self, *argument):
         return itertools.product(*argument)
     
+    def _check_lagrange_polynomials(self):
+        """ Sanity check on the lagrange polynomial condition. Testing the kroenecker delta condition.
+        """
+        for i, polynomial in enumerate(self.lagrange_polynomials):
+            for j in range(self.y.shape[1]):
+                eval = polynomial.feval(*self.y[:, j])
+                
+                if i == j:
+                    assert np.abs(eval - 1) <= 10E-5
+                else:
+                    assert np.abs(eval) <= 10E-5
     
 class ModelImprovement:
     """ Class that responsible for improving the lagrange polynomial models based on the poisedness of set Y. 
@@ -366,7 +371,7 @@ class ModelImprovement:
     def __init__(self) -> None:
         pass
     
-    def improve_model(self, lpolynomials:LagrangePolynomials, func:callable, L:float=100.0, max_iter:int=5) -> LagrangePolynomials:
+    def improve_model(self, lpolynomials:LagrangePolynomials, func:callable, L:float=100.0, max_iter:int=5, sort_type='function') -> LagrangePolynomials:
         """ The function responsible for improving the poisedness of set Y in lagrange polynomial. 
         It follows from Algorithm 6.3 in Conn's book.
 
@@ -398,9 +403,9 @@ class ModelImprovement:
                 feval = func(new_point)
                 new_f = lpolynomials.f*1
                 new_f[poisedness.index] = feval
-                lpolynomials = LagrangePolynomials(v=new_y, f=new_f, pdegree=2)
+                lpolynomials = LagrangePolynomials(v=new_y, f=new_f, pdegree=2, sort_type=sort_type)
             else:
-                lpolynomials = LagrangePolynomials(v=lpolynomials.y, f=lpolynomials.f, pdegree=2)
+                lpolynomials = LagrangePolynomials(v=lpolynomials.y, f=lpolynomials.f, pdegree=2, sort_type=sort_type)
                 break
             
             # save polynomial with the smallest poisedness
@@ -411,7 +416,7 @@ class ModelImprovement:
             if k == max_iter-1:
                 print(f"Could not construct polynomials with poisedness < {L} after {max_iter} iterations. Consider increasing the max_iter.")
             
-        self._check_lagrange_polynomials(best_polynomial.y, best_polynomial.lagrange_polynomials)    
+        lpolynomials._check_lagrange_polynomials()    
         
         return best_polynomial
     
