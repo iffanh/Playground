@@ -14,7 +14,7 @@ import itertools
 import scipy
 import scipy.special
 import functools
-from scipy.optimize import minimize, NonlinearConstraint
+from scipy.optimize import minimize, NonlinearConstraint, Bounds
 from typing import Any, Tuple, List
 import sympy as sp
 from sympy import lambdify
@@ -42,14 +42,18 @@ class LagrangePolynomial:
     
     def _define_nonlinear_constraint(self, rad:float, center:np.ndarray) -> NonlinearConstraint:
         return NonlinearConstraint(functools.partial(self.cons_f, center), 0, rad)
+    
+    def _define_nonlinear_bounds(self, rad:float, center:np.ndarray) -> Bounds:
+        return Bounds(lb=center-rad, ub=center+rad)
         
     def _find_max_given_boundary(self, x0:np.ndarray, rad:float, center:np.ndarray) -> Tuple[Any, float]:
         
         if self.max_sol:
             pass
         else:
+            nlinear_bounds = self._define_nonlinear_bounds(rad, center)
             nlinear_constraint = self._define_nonlinear_constraint(rad, center)
-            self.max_sol = minimize(self._func_to_minimize, x0, method='SLSQP', constraints=[nlinear_constraint])
+            self.max_sol = minimize(self._func_to_minimize, x0, method='SLSQP', bounds=nlinear_bounds, constraints=[nlinear_constraint])
         
         self.min_lambda = self.feval(*self.max_sol.x)
         
@@ -131,7 +135,7 @@ class LagrangePolynomials:
         """
         return self.model_polynomial.feval(*x)
         
-    def poisedness(self) -> Poisedness:
+    def poisedness(self, rad=None, center=None) -> Poisedness:
         """Calculate the minimum poisedness given the set of interpolation points.'
            The poisedness is calculated as: 
            
@@ -141,20 +145,28 @@ class LagrangePolynomials:
             int: index of lagrange polynomial with the largest poisedness
             float: Minimum poisedness of the given interpolation set
         """
-        return self._get_poisedness(self.lagrange_polynomials, self.sample_set)
         
-    def _get_poisedness(self, lagrange_polynomials, sample_set) -> Poisedness:
+        ## rad and center should only be used if poisedness is done "deliverately" in Ball(center, rad)
+        ## in most cases rad and center should be default to None and therefore the rad and center
+        ## will be calculated directly from the lagrange polynomial's sample set
+        ## only in special cases that rad and center are specified, like in the case of Algorithm 6.3
+        if rad is None:
+            rad = self.sample_set.ball.rad
+        if center is None:
+            center = self.sample_set.ball.center
         
-        rad = sample_set.ball.rad
+        return self._get_poisedness(self.lagrange_polynomials, self.sample_set, rad, center)
+        
+    def _get_poisedness(self, lagrange_polynomials, sample_set, rad:float, center:np.ndarray) -> Poisedness:
         
         Lambda = 0.0
         index = 0
         
         Lambdas = []
         max_sols = []
+        
         for i, lp in enumerate(lagrange_polynomials):
-            max_sol, feval = lp._find_max_given_boundary(self.y[:,0], rad, self.y[:,0])          
-            
+            max_sol, feval = lp._find_max_given_boundary(x0=self.y[:,0], rad=rad, center=center)          
             max_sols.append(max_sol)
             Lambdas.append(np.abs(feval))
             
@@ -346,56 +358,68 @@ class LagrangePolynomials:
     def _product(self, *argument):
         return itertools.product(*argument)
     
-    def update_lagrange_polynomials(self, L:float=200.0):
-        # Algorithm 6.3
-        poisedness = self.poisedness()
-        Lambda = poisedness.max_poisedness()
-        print(Lambda)
-        if Lambda > L:
-            print(f"Yes. New point = {poisedness.point_to_max_poisedness()}")
-        else:
-            print(f"No. Y set is good.")
-        
-        return
     
 class ModelImprovement:
+    """ Class that responsible for improving the lagrange polynomial models based on the poisedness of set Y. 
+    
+    """
     def __init__(self) -> None:
         pass
     
-    # def update_lagrange_polynomials(self, k:int, y:np.ndarray, y_new:np.ndarray, polynomials:List[LagrangePolynomial]):
-    #     # Algorithm 6.1 
-        
-    #     new_polynomial = polynomials[k].symbol/polynomials[k].feval(*y_new)
-        
-    #     lpolynomials = []
-    #     for polynomial in polynomials:
-            
-    #         symbol = polynomial.symbol
-    #         new_symbol = symbol - polynomial.feval(*y_new)*new_polynomial
-    #         lpolynomials.append(LagrangePolynomial(new_symbol, lambdify(list(new_symbol.free_symbols), new_symbol, 'numpy')))
-            
+    def improve_model(self, lpolynomials:LagrangePolynomials, func:callable, L:float=100.0, max_iter:int=5) -> LagrangePolynomials:
+        """ The function responsible for improving the poisedness of set Y in lagrange polynomial. 
+        It follows from Algorithm 6.3 in Conn's book.
 
-    #         # print(f"==================")
-    #         # print(f"symbol = {symbol}")
-    #         # print(f"new_symbol = {new_symbol}")
-          
-    #     # Switch point: Y* = Y \cup {y*_k} \ {y_k}  
-    #     y[:, k] = y_new
+        Args:
+            lpolynomials (LagrangePolynomials): LagrangePolynomials object to be improved
+            func (callable): function call to evaluate the new points
+            L (float, optional): Maximum poisedness in the new LagrangePolynomial object. Defaults to 100.0.
+            max_iter (int, optional): Number of loops to get to the improved poisedness. Defaults to 5.
+
+        Returns:
+            LagrangePolynomials: New LagrangePolynomial object with improved poisedness
+        """
+        rad = lpolynomials.sample_set.ball.rad
+        center = lpolynomials.sample_set.ball.center
+        
+        for k in range(max_iter):
+            # Algorithm 6.3
+            poisedness = lpolynomials.poisedness(rad=rad, center=center)
+            Lambda = poisedness.max_poisedness()
+            if k == 0:
+                best_polynomial = lpolynomials
+                curr_Lambda = Lambda
+
+            # main loop
+            if Lambda > L:
+                new_point = poisedness.point_to_max_poisedness()
+                new_y = lpolynomials.y*1
+                new_y[:, poisedness.index] = new_point
+                feval = func(new_point)
+                new_f = lpolynomials.f*1
+                new_f[poisedness.index] = feval
+                lpolynomials = LagrangePolynomials(v=new_y, f=new_f, pdegree=2)
+            else:
+                lpolynomials = LagrangePolynomials(v=lpolynomials.y, f=lpolynomials.f, pdegree=2)
+                break
             
-    #     self._check_lagrange_polynomials(y=y, polynomials=lpolynomials)
-             
-    #     return
-    
-    
+            # save polynomial with the smallest poisedness
+            if Lambda < curr_Lambda:
+                curr_Lambda = Lambda
+                best_polynomial = lpolynomials
+                
+            if k == max_iter-1:
+                print(f"Could not construct polynomials with poisedness < {L} after {max_iter} iterations. Consider increasing the max_iter.")
+            
+        self._check_lagrange_polynomials(best_polynomial.y, best_polynomial.lagrange_polynomials)    
+        
+        return best_polynomial
     
     def _check_lagrange_polynomials(self, y:np.ndarray, polynomials:List[LagrangePolynomial]):
         
         for i, polynomial in enumerate(polynomials):
-            print(f"polynomial.symbol = {polynomial.symbol}")
             for j in range(y.shape[1]):
                 eval = polynomial.feval(*y[:, j])
-                
-                print(y[:, j], i,j, eval)
                 
                 if i == j:
                     assert np.abs(eval - 1) <= 10E-5
