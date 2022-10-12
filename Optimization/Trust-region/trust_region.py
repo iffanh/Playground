@@ -3,13 +3,14 @@ import numpy as np
 from typing import Any, Tuple, List
 from sympy import lambdify
 from scipy.optimize import minimize, NonlinearConstraint, LinearConstraint
+from model_improvement import ModelImprovement
+
 
 class SubProblem:
     def __init__(self, polynomial:LagrangePolynomials, radius=2.0) -> None:
         
         # Right now the path is solved from solving the lambda, other options are sufficient decrease using pu and pb
         self.polynomial = polynomial
-        print('m(x) = ', self.polynomial.model_polynomial.symbol)
         self.path = self._solve_path_from_lambda(radius=radius)
         
         
@@ -57,33 +58,25 @@ class SubProblem:
         if np.linalg.norm(np.matmul(np.linalg.pinv(Hessian), gradient)) <= radius:
             print('Inside the radius')
             path = self._calculate_pb(gradient, Hessian)
-            print(f'step = {path}')
-            print(f'step size = {np.linalg.norm(path)}')
         
         else:
             eigenvals, Q = np.linalg.eigh(Hessian) # print(np.matmul(np.matmul(decom_mat, np.diag(eigenvals)), decom_mat.T)) #reconstruction
             nominators, is_hard_case = self._construct_nominators(gradient, Q)
             
-            if is_hard_case:
-                print('Hard Case')
+            if is_hard_case: 
                 sol = -eigenvals[0]
                 tau = np.sqrt(radius**2 - (nominators[1]/(eigenvals[1] - eigenvals[0]))**2)
                 z = Q[:, 0]
                 
                 path = - (tau*z + (nominators[1]/(eigenvals[1] + sol.x[0]))*Q[:, 1])
                 
-                
-            else:
-                print('Not Hard Case')
+            else: # Not hard case
                 resx = self._construct_function_r(eigenvals, nominators, radius)
                 x0 = -eigenvals[0] + 0.5
                 linear_constraint = LinearConstraint(np.ndarray([1]), lb=-eigenvals[0])
                 sol = minimize(resx, x0, method='SLSQP', constraints=[linear_constraint])
                 
-                print(sol.x[0])
                 path = - ((nominators[0]/(eigenvals[0] + sol.x[0]))*Q[:, 0] + (nominators[1]/(eigenvals[1] + sol.x[0]))*Q[:, 1])
-                print(f'step = {path}')
-                print(f'step size = {np.linalg.norm(path)}')
 
         return path
     
@@ -91,16 +84,17 @@ class TrustRegion:
     def __init__(self, dataset, results, func:callable) -> None:
         
         self.polynomial = LagrangePolynomials(dataset, results)
+        self.func = func
         self.sp = None
         
-        self.dataset = self.polynomial.v
+        self.dataset = self.polynomial.y
         self.results = self.polynomial.f
         
         self.rad = self.polynomial.sample_set.ball.rad # radius of trust region
         self.center = self.polynomial.sample_set.ball.center # center of trust region
         
     
-    def run(self, max_radius=2.0, init_radius=1.0, eta=0.2):
+    def run(self, x0:np.ndarray, max_radius:float=2.0):
         
         """ Algorithm: 
         0. Initialization: Set constant variables
@@ -115,18 +109,132 @@ class TrustRegion:
         6. Update dataset
         """
         
+        func = self.func
         
+        # Algorithm 10.3
+        eta0 = 0.2
+        eta1 = 0.5
+        gamma = 0.5
+        gamma_inc = 1.5
+        eps_c = 0.1
+        beta = 0.2
+        mu = 0.4
+        omega = 0.5
+        L = 1.2
+        
+        x0 = self.polynomial.sample_set.ball.center
+        gradient = self.polynomial.gradient(x0)
+        Hessian = self.polynomial.Hessian
+        
+        sigma_inc = self.find_sigma(gradient, Hessian)
+        m_inc = self.polynomial
+        rad_inc = m_inc.sample_set.ball.rad
+            
+        
+        self.list_of_models = []    
+            
+        for k in range(20):
+            
+            print(f"========================================")
+            m, rad, sigma = self.criticality_step(m_inc, func, sigma_inc, eps_c, rad_inc, mu, beta, omega, L)
+            x_opt = self.step_calculation(m)
+            m_inc, rho = self.acceptance_of_the_trial_point(m, m_inc, func, x0, x_opt, eta1, omega, L, mu)
+            rad_inc = self.trust_region_radius_update(rho, rad, gamma_inc, gamma, eta1, beta, sigma, max_radius)
+            
+            self.list_of_models.append(m_inc)
+            
         return 
-        
     
-    def solve_subproblem(self, rad=None):
+    def trust_region_radius_update(self, rho, rad, gamma_inc, gamma, eta1, beta, sigma_k, max_radius):
+        # Step 5 of Algoriithm 10.3
+        
+        if rho >= eta1 and rad < beta*sigma_k:
+            rad_inc = np.min([gamma_inc*rad, max_radius])
+        elif rho >= eta1 and rad >= beta*sigma_k:
+            rad_inc = np.min([rad, np.min([gamma_inc*rad, max_radius])])
+        elif rho < eta1:
+            rad_inc = gamma*rad
+        else:
+            rad_inc = rad*1
+        
+        return rad_inc
+    
+    def acceptance_of_the_trial_point(self, m:LagrangePolynomials, m_inc:LagrangePolynomials, func:callable, x0, x_opt, eta1:float, omega, L, mu):
+        # Step 3 of Algorithm 10.3
+        f1, f2 = func(x0), func(x_opt)
+        m1, m2 = m.model_polynomial.feval(*x0), m_inc.model_polynomial.feval(*x_opt)
+        rho = self.calculate_rho_ratio(f1, f2, m1, m2)
+        
+        if rho >= eta1:
+            print("heh")
+            sort_ind = m.f.argsort(axis=0)
+            m.y = m.y[:, sort_ind]
+            m.f = m.f[sort_ind]
+            m.y[:, -1] = x_opt
+            m.f[-1] = func(x_opt)
+            m_inc = LagrangePolynomials(v=m.y, f=m.f, pdegree=2, sort_type="function")
+            #  // TODO elif rho >= eta0:
+            #     pass
+        else:
+            print("huh")
+            m_inc = LagrangePolynomials(v=m.y, f=m.f, pdegree=2, sort_type="function")
+            m_inc, _, _ = self._model_improvement(m_inc, func, omega, L, mu)
+            
+        return m_inc, rho
+    
+    def step_calculation(self, m:LagrangePolynomials) -> np.ndarray:
+        # Step 2 of Algorithm 10.3
+        
+        optimal_path = self.solve_subproblem(m).path
+        optimal_solution = m.sample_set.ball.center + optimal_path
+        
+        return optimal_solution
+        
+    def criticality_step(self, m_inc:LagrangePolynomials, func:callable, sigma_inc:float, eps_c:float, rad_inc:float, mu:float, beta:float, omega:float, L:float) -> Tuple[LagrangePolynomials, float]:
+        # Step 1 of Algorithm 10.3
+        if sigma_inc <= eps_c:
+            if rad_inc > mu*sigma_inc:
+                m, rad, sigma = self._model_improvement(m_inc, func, omega, L, mu)
+
+                rad = np.min([rad_inc, np.max([rad, beta*sigma])])
+        else:
+            m = m_inc
+            rad = rad_inc
+            sigma = sigma_inc*1
+        
+        return m, rad, sigma
+    
+    def _model_improvement(self, lp:LagrangePolynomials, func:callable, omega:float, L:float, mu:float):
+        # Algorithm 10.4
+        
+        for i in range(10):
+            mi = ModelImprovement()
+            lp2 = mi.improve_model(lpolynomials=lp, func=func, L=L, max_iter=10, sort_type='function')
+            
+            x0 = lp2.sample_set.ball.center
+            gradient = lp2.gradient(x0)
+            Hessian = lp2.Hessian
+            
+            sigma_i = self.find_sigma(gradient, Hessian)
+            rad_k = omega*lp2.sample_set.ball.rad
+        
+            if rad_k <= mu*sigma_i:
+                break
+        
+        return lp2, rad_k, sigma_i
+    
+    def find_sigma(self, gradient:np.ndarray, Hessian:np.ndarray):
+        return np.max([np.linalg.norm(gradient), -np.linalg.eigh(Hessian)[0][-1]])
+    
+    def solve_subproblem(self, polynomial:LagrangePolynomials, rad=None) -> SubProblem:
         
         if rad: 
-            self.sp = SubProblem(self.polynomial, radius=rad)
+            self.sp = SubProblem(polynomial, radius=rad)
         else:
-            self.sp = SubProblem(self.polynomial, radius=self.rad)
+            self.sp = SubProblem(polynomial, radius=self.rad)
         
-        
+        return self.sp
+    
     def model_evaluation(self, point):
         return self.polynomial.model_polynomial.feval(*point)
     
