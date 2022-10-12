@@ -1,3 +1,4 @@
+from typing import List
 import numpy as np
 
 class Ball: 
@@ -64,4 +65,5 @@ class SampleSets:
         return np.mean(y, axis=1)
     
     def _find_sorted_index_by_function_value(self, f:np.ndarray):
-        return f.argsort()[::-1]
+        return f.argsort()
+    
