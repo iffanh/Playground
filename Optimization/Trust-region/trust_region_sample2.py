@@ -2,22 +2,23 @@ import json
 from lagrange_polynomial import LagrangePolynomials
 from trust_region import TrustRegion, SubProblem
 import matplotlib.pyplot as plt
+import os, glob
 
 import numpy as np
 
 # def myfunc(x:np.ndarray) -> np.ndarray:
-#     return x[0] + x[1] + 1*x[0]**2 + - 0*x[1]**3 + 3*x[1]**4
+#     return x[0] + x[1] + 1*x[0]**2 + + 1*x[1]**4
 
 def myfunc(x:np.ndarray) -> np.ndarray:
-    return x[0] - x[1] + 2*np.sin(x[0]) + 5*np.cos(x[1])
+    return x[0] - x[1] + 2*np.sin(2*x[0]) + 5*np.cos(x[1])
 
 if __name__ == '__main__':
 
     print(f"==============================================")
     # Define scalars
 
-    # dataset = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [2.0, 0.0], [1.0, 1.0], [0.0, 2.0]]).T
-    dataset = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [-1.0, 0.0], [1.0, 1.0], [0.0, -1.0]]).T
+    dataset = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [2.0, 0.0], [1.0, 1.0], [0.0, 2.0]]).T
+    # dataset = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [-1.0, 0.0], [1.0, 1.0], [0.0, -1.0]]).T 
     # dataset = np.array([[0.524, 0.0006], [0.032, 0.323], [0.187, 0.890], [0.5, 0.5], [0.982, 0.368], [0.774, 0.918]]).T
     results = []
     for i in range(dataset.shape[1]):
@@ -28,10 +29,10 @@ if __name__ == '__main__':
     print(f"Initial dataset: \n {dataset}")
     print(f"Initial function evaluation: \n {results}")    
     
-    x, y = np.meshgrid(np.linspace(-4, 4, 100),
-                    np.linspace(-4, 4, 100))
+    x, y = np.meshgrid(np.linspace(-6, 6, 100),
+                    np.linspace(-6, 6, 100))
     
-    levels = list(range(-40, 40, 2))
+    levels = list(range(-10, 10, 1))
     
     tr = TrustRegion(dataset, results, myfunc)
     
@@ -39,6 +40,10 @@ if __name__ == '__main__':
     
     old_center = [0,0]
     old_radius = 0
+    
+    files = glob.glob('./plots/*')
+    for f in files:
+        os.remove(f)
     
     for i, m in enumerate(tr.list_of_models):
         center = m.sample_set.ball.center
@@ -58,6 +63,7 @@ if __name__ == '__main__':
         ax.add_patch(circle2)
         ax.contour(x, y, func, levels)
         plt.scatter(m.y[0, :], m.y[1, :], label=f'iteration_{i}')
+        plt.scatter(m.y[0, 0], m.y[1, 0], label=f'Best point')
         
         plt.legend()
         plt.savefig(f"./plots/TR_plots_{i}.png")
