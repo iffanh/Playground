@@ -48,7 +48,7 @@ class LagrangePolynomial:
         
     def _find_max_given_boundary(self, x0:np.ndarray, rad:float, center:np.ndarray) -> Tuple[Any, float]:
         
-            nlinear_constraint = self._define_nonlinear_constraint(rad, center)
+        nlinear_constraint = self._define_nonlinear_constraint(rad, center)
         self.max_sol = minimize(self._func_to_minimize, x0, method='SLSQP', constraints=[nlinear_constraint])
         self.min_lambda = self.feval(*self.max_sol.x)
         
@@ -119,7 +119,7 @@ class LagrangePolynomials:
         self.polynomial_basis, self.input_symbols = self._get_polynomial_basis(self.multiindices, self.coefficients)
         
         if lpolynomials is None:
-        self.lagrange_polynomials = self._build_lagrange_polynomials(self.polynomial_basis, self.y, self.input_symbols)
+            self.lagrange_polynomials = self._build_lagrange_polynomials(self.polynomial_basis, self.y, self.input_symbols)
         else: # When lagrange polynomials is constructed manually
             self.lagrange_polynomials = lpolynomials
              
@@ -128,7 +128,7 @@ class LagrangePolynomials:
         self.gradient, self.Hessian = self._get_coefficients_from_expression(self.model_polynomial.symbol, self.input_symbols, self.pdegree)    
         
         self.index_of_largest_lagrangian_norm = None
-        
+    
     def interpolate(self, x:np.ndarray) -> float:
         """Interpolate using the interpolation model given the input x. 
            Maps R^n -> R, where n is the dimension of input data
@@ -221,7 +221,7 @@ class LagrangePolynomials:
             c22 = expression.coeff(x2p2); c22 = self._is_close_to_zero(c22)
             c12 = expression.coeff(x1x2)/2; c12 = self._is_close_to_zero(c12) # We only know c12 + c21 = constant
             c21 = expression.coeff(x1x2)/2; c21 = self._is_close_to_zero(c21)
-
+            
             gradient = self._construct_gradient(b1, b2, c11, c12, c21, c22) 
             Hessian = self._construct_Hessian(c11, c12, c21, c22)
             
@@ -245,7 +245,7 @@ class LagrangePolynomials:
             raise Exception(f"Polynomial degree of more than 2 is not yet supported.")
         
         return (gradient, Hessian)
-    
+        
     def _is_close_to_zero(self, var:float, tol:float=10E-5):
         if np.abs(var) < tol:
             return 0.0
@@ -377,7 +377,7 @@ class LagrangePolynomials:
                 if i == j:
                     if np.abs(eval - 1) <= 10E-5:
                         pass
-                else:
+                    else:
                         poisedness = self.poisedness().max_poisedness()
                         raise Exception(f"i, j = {i}, {j} but l_i(y_j) = {eval}. Set poisedness = {poisedness}")
                 else:
@@ -454,9 +454,9 @@ class ModelImprovement:
                 
                 if curr_Lambda < L:
                     return best_polynomial
-                
+            
             if k == max_iter-1:
-                print(f"Could not construct polynomials with poisedness < {L} after {max_iter} iterations. Consider increasing the max_iter.")
+                print(f"Could not construct polynomials with poisedness < {L} after {max_iter} iterations. Consider increasing the max_iter.") 
         
         return best_polynomial
 
