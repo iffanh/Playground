@@ -53,8 +53,7 @@ class LagrangePolynomial:
         else:
             nlinear_bounds = self._define_nonlinear_bounds(rad, center)
             nlinear_constraint = self._define_nonlinear_constraint(rad, center)
-            self.max_sol = minimize(self._func_to_minimize, x0, method='SLSQP', bounds=nlinear_bounds, constraints=[nlinear_constraint])
-        
+        self.max_sol = minimize(self._func_to_minimize, x0, method='SLSQP', constraints=[nlinear_constraint])
         self.min_lambda = self.feval(*self.max_sol.x)
         
         return self.max_sol.x, self.min_lambda
