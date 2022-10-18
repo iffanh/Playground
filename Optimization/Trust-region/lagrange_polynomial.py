@@ -84,7 +84,7 @@ class Poisedness:
     
 
 class LagrangePolynomials:
-    def __init__(self, v:np.ndarray, f:np.ndarray, pdegree:int = 2, sort_type:str='function'):
+    def __init__(self, pdegree:int = 2):
         """ This class should be able to generate lagrange polynomials given the samples
 
         Args:
@@ -104,7 +104,11 @@ class LagrangePolynomials:
             .get_poisedness : Calculate (minimum) poisedness of the given set
             
         """
+        ### Must exists
+        self.pdegree = pdegree
         
+        
+    def initialize(self, v:np.ndarray, f:np.ndarray, sort_type:str='function', lpolynomials:List[LagrangePolynomial] = None):
         self.sample_set = SampleSets(v, sort_type=sort_type, f=f)
         
         self.y = self.sample_set.y
@@ -113,13 +117,20 @@ class LagrangePolynomials:
         self.N = v.shape[0]
         self.P = v.shape[1]
         
-        self.multiindices = self._get_multiindices(self.N, pdegree, self.P)
+        self.multiindices = self._get_multiindices(self.N, self.pdegree, self.P)
         self.coefficients = self._get_coefficients(self.multiindices)
+        
         # Possible improvement is to let user decide which basis they want, e.g. for underdetermined problems (Ch. 5)
         self.polynomial_basis, self.input_symbols = self._get_polynomial_basis(self.multiindices, self.coefficients)
+        
+        if lpolynomials is None:
         self.lagrange_polynomials = self._build_lagrange_polynomials(self.polynomial_basis, self.y, self.input_symbols)
+        else: # When lagrange polynomials is constructed manually
+            self.lagrange_polynomials = lpolynomials
+             
         self.model_polynomial = self._build_model_polynomial(self.lagrange_polynomials, self.f, self.input_symbols)
-        self.gradient, self.Hessian = self._get_coefficients_from_expression(self.model_polynomial.symbol, self.input_symbols, pdegree)    
+        
+        self.gradient, self.Hessian = self._get_coefficients_from_expression(self.model_polynomial.symbol, self.input_symbols, self.pdegree)    
         
         self.index_of_largest_lagrangian_norm = None
         
