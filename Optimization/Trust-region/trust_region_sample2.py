@@ -5,8 +5,11 @@ import matplotlib.pyplot as plt
 
 import numpy as np
 
+# def myfunc(x:np.ndarray) -> np.ndarray:
+#     return x[0] + x[1] + 1*x[0]**2 + - 0*x[1]**3 + 3*x[1]**4
+
 def myfunc(x:np.ndarray) -> np.ndarray:
-    return x[0] + x[1] + 2*x[0]**2 + 3*x[1]**4
+    return x[0] - x[1] + 2*np.sin(x[0]) + 5*np.cos(x[1])
 
 if __name__ == '__main__':
 
@@ -14,7 +17,7 @@ if __name__ == '__main__':
     # Define scalars
 
     # dataset = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [2.0, 0.0], [1.0, 1.0], [0.0, 2.0]]).T
-    dataset = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [-1.0, 0.0], [1.0, 1.0], [0.0, -1.0]]).T + 1
+    dataset = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [-1.0, 0.0], [1.0, 1.0], [0.0, -1.0]]).T
     # dataset = np.array([[0.524, 0.0006], [0.032, 0.323], [0.187, 0.890], [0.5, 0.5], [0.982, 0.368], [0.774, 0.918]]).T
     results = []
     for i in range(dataset.shape[1]):
@@ -28,12 +31,14 @@ if __name__ == '__main__':
     x, y = np.meshgrid(np.linspace(-4, 4, 100),
                     np.linspace(-4, 4, 100))
     
-    levels = list(range(-20, 20, 2))
+    levels = list(range(-40, 40, 2))
     
     tr = TrustRegion(dataset, results, myfunc)
     
-    tr.run(x0=np.array([0.3, 0.3]), max_radius=30.0)
+    tr.run(max_radius=2.0, max_iter=20)
     
+    old_center = [0,0]
+    old_radius = 0
     
     for i, m in enumerate(tr.list_of_models):
         center = m.sample_set.ball.center
@@ -44,22 +49,18 @@ if __name__ == '__main__':
         intindices = dist <= radius
         
         fig, ax = plt.subplots(1)
+        ax.set_title(tr.list_of_status[i])
         func = myfunc([x, y])
         func[intindices] = m.model_polynomial.feval(x, y)[intindices]
-        circle2 = plt.Circle(center, radius, color='black', fill=False)
+        circle1 = plt.Circle(center, radius, color='black', fill=False)
+        circle2 = plt.Circle(old_center, old_radius, color='red', fill=False)
+        ax.add_patch(circle1)
         ax.add_patch(circle2)
         ax.contour(x, y, func, levels)
         plt.scatter(m.y[0, :], m.y[1, :], label=f'iteration_{i}')
         
         plt.legend()
         plt.savefig(f"./plots/TR_plots_{i}.png")
-    
-# if __name__ == '__main__':
-    
-#     print(f"==============================================")
-#     filename = "./data/test.json"
-    
-#     with open(filename, 'r') as f:
-#         data = json.load(f)
         
-#     print(data)
+        old_center = center*1
+        old_radius = radius*1
