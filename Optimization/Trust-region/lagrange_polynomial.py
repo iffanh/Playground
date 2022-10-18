@@ -231,6 +231,12 @@ class LagrangePolynomials:
             Hessian = self._construct_Hessian(c11, c12, c21, c22)
             
             eigenvals, _ = np.linalg.eigh(Hessian)
+            
+            # print(eigenvals, eigenvals.all())
+            if eigenvals[eigenvals < 0].shape[0] == 2:
+                ## TODO: Fix this. This is an adhoc to ensure  positive definiteness:
+                Hessian = np.abs(Hessian)
+            
         elif degree == 1:
             x1, x2 = input_symbols
             
