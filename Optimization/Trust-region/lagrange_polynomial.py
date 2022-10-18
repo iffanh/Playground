@@ -166,9 +166,9 @@ class LagrangePolynomials:
         if center is None:
             center = self.sample_set.ball.center
         
-        return self._get_poisedness(self.lagrange_polynomials, self.sample_set, rad, center)
+        return self._get_poisedness(self.lagrange_polynomials, rad, center)
         
-    def _get_poisedness(self, lagrange_polynomials, sample_set, rad:float, center:np.ndarray) -> Poisedness:
+    def _get_poisedness(self, lagrange_polynomials:List[LagrangePolynomial], rad:float, center:np.ndarray) -> Poisedness:
         
         Lambda = 0.0
         index = 0
