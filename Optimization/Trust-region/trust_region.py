@@ -128,6 +128,8 @@ class TrustRegion:
         mu = 0.4
         omega = 0.5
         L = 1.2
+        status = 'Initializing'
+        
         
         x0 = self.polynomial.sample_set.ball.center
         gradient = self.polynomial.gradient(x0)
@@ -168,22 +170,22 @@ class TrustRegion:
         
         return rad_inc
     
-    def acceptance_of_the_trial_point(self, m:LagrangePolynomials, m_inc:LagrangePolynomials, func:callable, x0, x_opt, eta1:float, omega, L, mu, rad:float):
+    def acceptance_of_the_trial_point(self, m:LagrangePolynomials, func:callable, x0, x_opt, eta1:float, omega, L, mu, rad:float):
         # Step 3 of Algorithm 10.3
         f1, f2 = func(x0), func(x_opt)
-        m1, m2 = m.model_polynomial.feval(*x0), m_inc.model_polynomial.feval(*x_opt)
+        m1, m2 = m.model_polynomial.feval(*x0), m.model_polynomial.feval(*x_opt)
         rho = self.calculate_rho_ratio(f1, f2, m1, m2)
         
         if rho >= eta1:
             status = "Successful"
             sort_ind = m.f.argsort(axis=0)
-            m.y = m.y[:, sort_ind]
-            m.f = m.f[sort_ind]
-            m.y[:, -1] = x_opt
-            m.f[-1] = func(x_opt)
+            _my = m.y[:, sort_ind]
+            _mf = m.f[sort_ind]
+            _my[:, -1] = x_opt
+            _mf[-1] = func(x_opt)
             
             m_inc = LagrangePolynomials(pdegree=2)
-            m_inc.initialize(v=m.y, f=m.f, sort_type="function")
+            m_inc.initialize(v=_my, f=_mf, sort_type="function")
             
             #  // TODO elif rho >= eta0:
             #     pass
@@ -205,11 +207,12 @@ class TrustRegion:
         
     def criticality_step(self, m_inc:LagrangePolynomials, func:callable, sigma_inc:float, eps_c:float, rad_inc:float, mu:float, beta:float, omega:float, L:float) -> Tuple[LagrangePolynomials, float]:
         # Step 1 of Algorithm 10.3
-        if sigma_inc <= eps_c:
-            if rad_inc > mu*sigma_inc:
+        if sigma_inc <= eps_c and rad_inc > mu*sigma_inc:
+            while rad > mu*sigma_inc:
                 m, rad, sigma = self._model_improvement(m_inc, func, omega, L, mu, rad_inc)
 
                 rad = np.min([rad_inc, np.max([rad, beta*sigma])])
+            
         else:
             m = m_inc
             rad = rad_inc
