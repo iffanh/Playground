@@ -49,7 +49,8 @@ class LagrangePolynomial:
     def _find_max_given_boundary(self, x0:np.ndarray, rad:float, center:np.ndarray) -> Tuple[Any, float]:
         
         nlinear_constraint = self._define_nonlinear_constraint(rad, center)
-        self.max_sol = minimize(self._func_to_minimize, x0, method='SLSQP', constraints=[nlinear_constraint])
+        nlinear_bound = self._define_nonlinear_bounds(rad, center)
+        self.max_sol = minimize(self._func_to_minimize, x0, method='SLSQP', bounds=nlinear_bound, constraints=[nlinear_constraint])
         self.min_lambda = self.feval(*self.max_sol.x)
         
         return self.max_sol.x, self.min_lambda
