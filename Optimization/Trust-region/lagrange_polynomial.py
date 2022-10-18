@@ -394,7 +394,7 @@ class ModelImprovement:
     def __init__(self) -> None:
         pass
     
-    def improve_model(self, lpolynomials:LagrangePolynomials, func:callable, L:float=100.0, max_iter:int=5, sort_type='function') -> LagrangePolynomials:
+    def improve_model(self, lpolynomials:LagrangePolynomials, func:callable, rad:float, center:np.ndarray, L:float=1.5, max_iter:int=5, sort_type='function') -> LagrangePolynomials:
         """ The function responsible for improving the poisedness of set Y in lagrange polynomial. 
         It follows from Algorithm 6.3 in Conn's book.
 
@@ -407,8 +407,6 @@ class ModelImprovement:
         Returns:
             LagrangePolynomials: New LagrangePolynomial object with improved poisedness
         """
-        rad = lpolynomials.sample_set.ball.rad
-        center = lpolynomials.sample_set.ball.center
         
         for k in range(max_iter):
             # Algorithm 6.3
@@ -426,22 +424,42 @@ class ModelImprovement:
                 feval = func(new_point)
                 new_f = lpolynomials.f*1
                 new_f[poisedness.index] = feval
-                lpolynomials = LagrangePolynomials(v=new_y, f=new_f, pdegree=2, sort_type=sort_type)
+                lpolynomials = LagrangePolynomials(pdegree=2)
+                lpolynomials.initialize(v=new_y, f=new_f, sort_type=sort_type)       
             else:
-                lpolynomials = LagrangePolynomials(v=lpolynomials.y, f=lpolynomials.f, pdegree=2, sort_type=sort_type)
+                
+                # Ad-hoc:
+                # - check if the number of points given the radius is enough for interpolation.
+                # - if not, scale the outside points with the said radius
+                # - should have some look up table to see whether points inside are available
+                rad_ratio = rad/lpolynomials.sample_set.ball.rad
+                if rad_ratio < 1.0:
+                    new_y = (lpolynomials.y - lpolynomials.sample_set.ball.center[:,np.newaxis])*rad_ratio + lpolynomials.sample_set.ball.center[:,np.newaxis]
+                    results = []
+                    for i in range(new_y.shape[1]):
+                        x = new_y[:, i]
+                        results.append(func(x))
+                    new_f = np.array(results)
+                    
+                    best_polynomial = LagrangePolynomials(pdegree=2)
+                    best_polynomial.initialize(v=new_y, f=new_f, sort_type=sort_type)  
                 break
             
             # save polynomial with the smallest poisedness
             if Lambda < curr_Lambda:
-                curr_Lambda = Lambda
-                best_polynomial = lpolynomials
+                curr_Lambda = Lambda*1
+                best_polynomial = LagrangePolynomials(pdegree=2)
+                
+                best_polynomial.initialize(v=new_y, f=new_f, sort_type=sort_type)
+                
+                if curr_Lambda < L:
+                    return best_polynomial
                 
             if k == max_iter-1:
                 print(f"Could not construct polynomials with poisedness < {L} after {max_iter} iterations. Consider increasing the max_iter.")
-            
-        lpolynomials._check_lagrange_polynomials()    
         
         return best_polynomial
+
     
     def _check_lagrange_polynomials(self, y:np.ndarray, polynomials:List[LagrangePolynomial]):
         
@@ -450,6 +468,6 @@ class ModelImprovement:
                 eval = polynomial.feval(*y[:, j])
                 
                 if i == j:
-                    assert np.abs(eval - 1) <= 10E-5
+                    assert np.abs(eval - 1) <= 10E-2
                 else:
-                    assert np.abs(eval) <= 10E-5
+                    assert np.abs(eval) <= 10E-2
