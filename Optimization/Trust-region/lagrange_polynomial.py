@@ -230,6 +230,7 @@ class LagrangePolynomials:
             gradient = self._construct_gradient(b1, b2, c11, c12, c21, c22) 
             Hessian = self._construct_Hessian(c11, c12, c21, c22)
             
+            eigenvals, _ = np.linalg.eigh(Hessian)
         elif degree == 1:
             x1, x2 = input_symbols
             
