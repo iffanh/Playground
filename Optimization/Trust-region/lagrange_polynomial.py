@@ -48,10 +48,6 @@ class LagrangePolynomial:
         
     def _find_max_given_boundary(self, x0:np.ndarray, rad:float, center:np.ndarray) -> Tuple[Any, float]:
         
-        if self.max_sol:
-            pass
-        else:
-            nlinear_bounds = self._define_nonlinear_bounds(rad, center)
             nlinear_constraint = self._define_nonlinear_constraint(rad, center)
         self.max_sol = minimize(self._func_to_minimize, x0, method='SLSQP', constraints=[nlinear_constraint])
         self.min_lambda = self.feval(*self.max_sol.x)
@@ -304,7 +300,7 @@ class LagrangePolynomials:
         lpolynomials = []
         for i in range(lagrange_matrix.shape[0]):
             lpolynomial = lagrange_matrix[i, :][0]
-            lpolynomials.append(LagrangePolynomial(lpolynomial, lambdify(input_symbols, lpolynomial, 'numpy')))
+            lpolynomials.append(LagrangePolynomial(lpolynomial, lambdify(list(input_symbols), lpolynomial, 'numpy')))
         
         return lpolynomials
     
@@ -372,14 +368,24 @@ class LagrangePolynomials:
     def _check_lagrange_polynomials(self):
         """ Sanity check on the lagrange polynomial condition. Testing the kroenecker delta condition.
         """
+        
+        ## TODO: CHECK IF THE DATASET UPDATE AND POLYNOMIALS ARE ONE TO ONE
         for i, polynomial in enumerate(self.lagrange_polynomials):
             for j in range(self.y.shape[1]):
                 eval = polynomial.feval(*self.y[:, j])
                 
                 if i == j:
-                    assert np.abs(eval - 1) <= 10E-5
+                    if np.abs(eval - 1) <= 10E-5:
+                        pass
                 else:
-                    assert np.abs(eval) <= 10E-5
+                        poisedness = self.poisedness().max_poisedness()
+                        raise Exception(f"i, j = {i}, {j} but l_i(y_j) = {eval}. Set poisedness = {poisedness}")
+                else:
+                    if np.abs(eval) <= 10E-5:
+                        pass
+                    else:
+                        poisedness = self.poisedness().max_poisedness()
+                        raise Exception(f"i, j = {i}, {j} but l_i(y_j) = {eval}. Set poisedness = {poisedness}")    
     
 class ModelImprovement:
     """ Class that responsible for improving the lagrange polynomial models based on the poisedness of set Y. 
