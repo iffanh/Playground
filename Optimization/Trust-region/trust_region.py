@@ -5,7 +5,7 @@ from scipy.optimize import minimize, NonlinearConstraint
 from model_improvement import ModelImprovement
 
 class SubProblem:
-    def __init__(self, polynomial:LagrangePolynomials, radius=2.0) -> None:
+    def __init__(self, polynomial:LagrangePolynomials, radius:float) -> None:
         
         # Right now the path is solved from solving the lambda, other options are sufficient decrease using pu and pb
         self.polynomial = polynomial
@@ -101,7 +101,7 @@ class TrustRegion:
         self.center = self.polynomial.sample_set.ball.center # center of trust region
         
     
-    def run(self, max_radius:float=2.0, max_iter:int=20):
+    def run(self, max_radius:float=1.5, max_iter:int=20, rad_tol:float=1E-3):
         
         """ Algorithm: 
         0. Initialization: Set constant variables
@@ -122,9 +122,9 @@ class TrustRegion:
         eta0 = 0.2
         eta1 = 0.5
         gamma = 0.5
-        gamma_inc = 1.5
-        eps_c = 0.2
-        beta = 0.2
+        gamma_inc = 1.2
+        eps_c = 0.5
+        beta = 0.3
         mu = 0.4
         omega = 0.5
         L = 1.2
@@ -142,17 +142,37 @@ class TrustRegion:
         
         self.list_of_models = []
         self.list_of_status = []
+        self.list_of_OF = []
             
-        for k in range(max_iter):
+        # for k in range(max_iter):
+        #     print(rad_inc)
+        #     if rad_inc < rad_tol:
+        #         break
+            
+        k = 0
+        while rad_inc >= rad_tol:
+            
+            if k > max_iter:
+                break
+                
             self.list_of_models.append(m_inc)
-            print(f"====================Iteration {k}====================")
-            m, rad, sigma = self.criticality_step(m_inc, func, sigma_inc, eps_c, rad_inc, mu, beta, omega, L)
-            x_opt = self.step_calculation(m, rad)
-            print(f"x_opt = {x_opt}")
-            m_inc, rho, status = self.acceptance_of_the_trial_point(m, m_inc, func, x0, x_opt, eta1, omega, L, mu, rad)
-            rad_inc = self.trust_region_radius_update(rho, rad, gamma_inc, gamma, eta1, beta, sigma, max_radius)
-            
             self.list_of_status.append(status)
+            self.list_of_OF.append(m_inc.f[0])
+            try:
+                print(f"====================Iteration {k}====================")
+                m, rad, _ = self.criticality_step(m_inc, func, sigma_inc, eps_c, rad_inc, mu, beta, omega, L)
+                x_opt = self.step_calculation(m, rad)
+                m_inc, rho, sigma, status = self.acceptance_of_the_trial_point(m, func, x0, x_opt, eta1, omega, L, mu, rad)
+                rad_inc = self.trust_region_radius_update(rho, rad, gamma_inc, gamma, eta1, beta, sigma, max_radius)
+                print(f"Best point = {m_inc.y[:,0]}")
+                print(f"Best OF: {m_inc.f[0]}")
+                print(f"rho : {rho}")
+                print(f"Radius: {rad_inc}")
+            except:
+                print(f"Process terminated due to non-invertible matrix")
+                break
+            
+            k += 1
             
         return 
     
@@ -187,7 +207,7 @@ class TrustRegion:
             m_inc = LagrangePolynomials(pdegree=2)
             m_inc.initialize(v=_my, f=_mf, sort_type="function")
             
-            #  // TODO elif rho >= eta0:
+            #  // TODO elif rho >= eta0: we need to first create a function to detect fully linear/quadratic condition
             #     pass
         else:
             status = "Model improving"
@@ -195,7 +215,14 @@ class TrustRegion:
             m_inc.initialize(v=m.y, f=m.f, sort_type="function")
             m_inc, _, _ = self._model_improvement(m_inc, func, omega, L, mu, rad)
             
-        return m_inc, rho, status
+        x0 = m_inc.sample_set.ball.center
+        # gradient = self.polynomial.gradient(x0)
+        # Hessian = self.polynomial.Hessian
+        gradient = m_inc.gradient(x0)
+        Hessian = m_inc.Hessian
+        sigma_inc = self.find_sigma(gradient, Hessian)
+            
+        return m_inc, rho, sigma_inc, status
     
     def step_calculation(self, m:LagrangePolynomials, rad:float) -> np.ndarray:
         # Step 2 of Algorithm 10.3
