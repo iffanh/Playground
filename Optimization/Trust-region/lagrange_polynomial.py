@@ -104,7 +104,7 @@ class LagrangePolynomials:
         self.pdegree = pdegree
         
         
-    def initialize(self, v:np.ndarray, f:np.ndarray, sort_type:str='function', lpolynomials:List[LagrangePolynomial] = None):
+    def initialize(self, v:np.ndarray, f:np.ndarray, sort_type:str='function', interpolation_type:str = 'frobenius', lpolynomials:List[LagrangePolynomial] = None):
         self.sample_set = SampleSets(v, sort_type=sort_type, f=f)
         
         self.y = self.sample_set.y
@@ -112,7 +112,6 @@ class LagrangePolynomials:
         
         self.N = v.shape[0]
         self.P = v.shape[1]
-        
         self.multiindices = self._get_multiindices(self.N, self.pdegree, self.P)
         self.coefficients = self._get_coefficients(self.multiindices)
         
@@ -120,7 +119,16 @@ class LagrangePolynomials:
         self.polynomial_basis, self.input_symbols = self._get_polynomial_basis(self.multiindices, self.coefficients)
         
         if lpolynomials is None:
-            self.lagrange_polynomials = self._build_lagrange_polynomials(self.polynomial_basis, self.y, self.input_symbols)
+            if interpolation_type == 'minimum':
+                self.lagrange_polynomials = self._build_lagrange_polynomials(self.polynomial_basis, self.y, self.input_symbols)
+            elif interpolation_type == 'frobenius':
+                # frobenius norm can only be used when the number of data points are between n+1 <= p <= 1/2 (n+1)(n+2)
+                
+                if self.N + 1 <= self.P and self.P <= 0.5*(self.N+1)*(self.N+2):
+                    self.lagrange_polynomials = self._build_lagrange_polynomials_frobenius(self.polynomial_basis, self.y, self.input_symbols)
+            
+            else:
+                raise Exception(f"Interpolation type of {interpolation_type} is not known. Try 'minimum' of 'frobenius'")
         else: # When lagrange polynomials is constructed manually
             self.lagrange_polynomials = lpolynomials
              
@@ -305,6 +313,59 @@ class LagrangePolynomials:
         
         return lpolynomials
     
+    def _build_lagrange_polynomials_frobenius(self, basis:List[PolynomialBase], data_points:np.ndarray, input_symbols:list) -> List[LagrangePolynomial]:
+        """ Responsible for generating the lagrange polynomials in Frobenius norm sense. Read chapter 5 of Conn's book.
+
+        Args:
+            basis (List[PolynomialBase]): List of polynomial base
+            data_points (np.ndarray): matrix of interpolation set input Y {y1, y2, ..., yp}
+            input_symbols (list): list of sympy symbol for the input X = {x1, x2, ..., xn}
+
+        Returns:
+            List[LagrangePolynomial]: Lagrange polynomials, {lambda_0, lambda_1, ..., lambda_p}
+        """
+        
+        # Create the full matrix
+        matrix = []
+        for i in range(data_points.shape[1]):
+            input = data_points[:,i]
+            entry = [d.feval(*input) for d in basis]
+            matrix.append(entry)
+        basis_matrix = sp.Matrix(matrix)
+        basis_list = [d.symbol for d in basis]
+        basis_vector = sp.Matrix(basis_list)
+        
+        ## Build lagrange polynomials based on Frobenius norm
+        # Divide between linear and quadratic terms
+        basis_matrix_linear = basis_matrix[:, :3]
+        basis_matrix_quadratic = basis_matrix[:, 4:]
+        
+        basis_vector_linear = basis_vector[:3, :]
+        basis_vector_quadratic = basis_vector[4:, :]
+        
+        # Build matrix F (eq 5.7)
+        matrix_A = basis_matrix_quadratic*basis_matrix_quadratic.T
+        matrix_F = sp.Matrix([[matrix_A, basis_matrix_linear], [basis_matrix_linear.T, 0*sp.eye(3)]])
+        
+        try:
+            matrix_F_inv = matrix_F.n(30).inv().n(16)
+        except:
+            raise Exception(f"Matrix F is non-singular.")
+        
+        # Construct (Eq 5.9) F x L = B
+        matrix_B = sp.Matrix([[basis_matrix_quadratic*basis_vector_quadratic], [basis_vector_linear]])
+        
+        solution_matrix = matrix_F_inv*matrix_B
+        
+        # print(solution_matrix, solution_matrix.shape)
+        
+        lpolynomials = []
+        for i in range(matrix_A.shape[0]):
+            lpolynomial = solution_matrix[i, :][0]
+            lpolynomials.append(LagrangePolynomial(lpolynomial, lambdify(list(input_symbols), lpolynomial, 'numpy')))
+        
+        return lpolynomials
+    
     def _get_polynomial_basis(self, exponents:list, coefficients:list) -> Tuple[List[PolynomialBase], list]:
         """Responsible for generating all the polynomial basis, also returning input_symbols
 
@@ -358,8 +419,8 @@ class LagrangePolynomials:
          
         multiindices = [ind for ind in multiindices if np.sum(ind) <= d]
         
-        if p < len(multiindices):
-            raise Exception(f"The length of interpolation points: {p} is less than the minimum requirement : {len(multiindices)}")
+        # Make sure that the order of the polynomial basis is based on the level of expansion
+        multiindices.sort(key= lambda x: x[0] + x[1])
         
         return multiindices 
          
