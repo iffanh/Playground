@@ -72,10 +72,10 @@ class Poisedness:
     def _validate_class(self):
         assert np.max(self.poisedness) == self.poisedness[self.index]
     
-    def max_poisedness(self):
+    def max_poisedness(self) -> float:
         return np.max(self.poisedness)
     
-    def point_to_max_poisedness(self):
+    def point_to_max_poisedness(self) -> np.ndarray:
         return self.max_points[self.index]
     
 
@@ -161,7 +161,7 @@ class LagrangePolynomials:
             float: Minimum poisedness of the given interpolation set
         """
         
-        ## rad and center should only be used if poisedness is done "deliverately" in Ball(center, rad)
+        ## rad and center should only be used if poisedness is done "deliberately" in Ball(center, rad)
         ## in most cases rad and center should be default to None and therefore the rad and center
         ## will be calculated directly from the lagrange polynomial's sample set
         ## only in special cases that rad and center are specified, like in the case of Algorithm 6.3
@@ -181,6 +181,7 @@ class LagrangePolynomials:
         max_sols = []
         
         for i, lp in enumerate(lagrange_polynomials):
+            
             max_sol, feval = lp._find_max_given_boundary(x0=self.y[:,0], rad=rad, center=center)          
             max_sols.append(max_sol)
             Lambdas.append(np.abs(feval))
@@ -474,18 +475,31 @@ class ModelImprovement:
             # Algorithm 6.3
             poisedness = lpolynomials.poisedness(rad=rad, center=center)
             Lambda = poisedness.max_poisedness()
+            
+            if poisedness.index == 0:
+                pindex = 1
+            else:
+                pindex = poisedness.index
+                
             if k == 0:
                 best_polynomial = lpolynomials
                 curr_Lambda = Lambda
 
             # main loop
             if Lambda > L:
+                # find new point and its OF
                 new_point = poisedness.point_to_max_poisedness()
-                new_y = lpolynomials.y*1
-                new_y[:, poisedness.index] = new_point
                 feval = func(new_point)
+                
+                # copy values
+                new_y = lpolynomials.y*1
                 new_f = lpolynomials.f*1
-                new_f[poisedness.index] = feval
+                
+                # replace value
+                new_y[:, pindex] = new_point
+                new_f[pindex] = feval
+                
+                # create polynomials
                 lpolynomials = LagrangePolynomials(pdegree=2)
                 lpolynomials.initialize(v=new_y, f=new_f, sort_type=sort_type)       
             else:
