@@ -72,7 +72,7 @@ class SubProblem:
                 tau = np.sqrt(radius**2 - (nominators[1]/(eigenvals[1] - eigenvals[0]))**2)
                 z = Q[:, 0]
                 
-                path = - (tau*z + (nominators[1]/(eigenvals[1] + sol.x[0]))*Q[:, 1])
+                path = - (tau*z + (nominators[1]/(eigenvals[1] + sol))*Q[:, 1])
                 
             else:
                 # not hard case
@@ -101,7 +101,7 @@ class TrustRegion:
         self.center = self.polynomial.sample_set.ball.center # center of trust region
         
     
-    def run(self, max_radius:float=1.5, max_iter:int=20, rad_tol:float=1E-3):
+    def run(self, max_radius:float=1.5, max_iter:int=20, rad_tol:float=1E-5):
         
         """ Algorithm: 
         0. Initialization: Set constant variables
@@ -144,11 +144,6 @@ class TrustRegion:
         self.list_of_status = []
         self.list_of_OF = []
             
-        # for k in range(max_iter):
-        #     print(rad_inc)
-        #     if rad_inc < rad_tol:
-        #         break
-            
         k = 0
         while rad_inc >= rad_tol:
             
@@ -158,7 +153,8 @@ class TrustRegion:
             self.list_of_models.append(m_inc)
             self.list_of_status.append(status)
             self.list_of_OF.append(m_inc.f[0])
-            try:
+            # try:
+            if True:
                 print(f"====================Iteration {k}====================")
                 m, rad, _ = self.criticality_step(m_inc, func, sigma_inc, eps_c, rad_inc, mu, beta, omega, L)
                 x_opt = self.step_calculation(m, rad)
@@ -168,9 +164,9 @@ class TrustRegion:
                 print(f"Best OF: {m_inc.f[0]}")
                 print(f"rho : {rho}")
                 print(f"Radius: {rad_inc}")
-            except:
-                print(f"Process terminated due to non-invertible matrix")
-                break
+            # except:
+            #     print(f"Process terminated due to non-invertible matrix")
+            #     break
             
             k += 1
             
