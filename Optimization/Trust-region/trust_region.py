@@ -153,8 +153,8 @@ class TrustRegion:
             self.list_of_models.append(m_inc)
             self.list_of_status.append(status)
             self.list_of_OF.append(m_inc.f[0])
-            # try:
-            if True:
+            try:
+            # if True:
                 print(f"====================Iteration {k}====================")
                 m, rad, _ = self.criticality_step(m_inc, func, sigma_inc, eps_c, rad_inc, mu, beta, omega, L)
                 x_opt = self.step_calculation(m, rad)
@@ -164,9 +164,9 @@ class TrustRegion:
                 print(f"Best OF: {m_inc.f[0]}")
                 print(f"rho : {rho}")
                 print(f"Radius: {rad_inc}")
-            # except:
-            #     print(f"Process terminated due to non-invertible matrix")
-            #     break
+            except:
+                print(f"Process terminated due to non-invertible matrix")
+                break
             
             k += 1
             
@@ -302,3 +302,12 @@ class TrustRegion:
     def calculate_rho_ratio(self, f1:float, f2:float, m1:float, m2:float) -> float:
         
         return (f1 - f2)/(m1 - m2)
+    
+
+class LinearConstraint():
+    def __init__(self) -> None:
+        pass
+    
+class NonLinearConstraint():
+    def __init__(self) -> None:
+        pass
