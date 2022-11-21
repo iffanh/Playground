@@ -62,10 +62,15 @@ class ModelPolynomial:
         self.feval = feval
         
 class Poisedness:
-    def __init__(self, index, max_points, poisedness) -> None:
+    def __init__(self, index, max_points, poisedness, index_res) -> None:
+        ''' Class for containing information regarding poisedness
+        index = index of the best point
+        index_res = reserved index if index point turns out to be the best point
+        '''
         self.index = index # Index with the maximum poisedness
         self.max_points = max_points
         self.poisedness = poisedness
+        self.index_res = index_res
         
         self._validate_class()
         
@@ -175,7 +180,8 @@ class LagrangePolynomials:
     def _get_poisedness(self, lagrange_polynomials:List[LagrangePolynomial], rad:float, center:np.ndarray) -> Poisedness:
         
         Lambda = 0.0
-        index = 0
+        # index_res = -1
+        index = -1
         
         Lambdas = []
         max_sols = []
@@ -188,12 +194,13 @@ class LagrangePolynomials:
             
             if np.abs(feval) > Lambda:
                 Lambda = np.abs(feval)
+                index_res = index*1
                 index = i
             
         if Lambda == 0:
             raise Exception(f"Poisedness (Lambda) is 0. Something is wrong.")
         
-        return Poisedness(index, max_sols, Lambdas)
+        return Poisedness(index, max_sols, Lambdas, index_res)
     
     def _construct_b_apprx(self, b1:float, b2:float) -> np.ndarray:
         return np.array([b1, b2])
@@ -477,7 +484,7 @@ class ModelImprovement:
             Lambda = poisedness.max_poisedness()
             
             if poisedness.index == 0:
-                pindex = 1
+                pindex = poisedness.index_res
             else:
                 pindex = poisedness.index
                 
