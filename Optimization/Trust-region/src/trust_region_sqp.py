@@ -1,12 +1,12 @@
 import numpy as np
 import casadi as ca
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 
-from .exceptions.TR_exceptions import IncorrectConstantsException
+from .utils.TR_exceptions import IncorrectConstantsException
 from .lagrange_polynomial import LagrangePolynomials
 from .model_improvement import ModelImprovement
-from .simulation_manager import EqualityConstraints, InequalityConstraints
-
+from .utils.simulation_manager import CostFunction, EqualityConstraints, InequalityConstraints
+from .utils.model_manager import CostFunctionModel, EqualityConstraintModels, InequalityConstraintModels
 
 
 class TrustRegionSQPFilter():
@@ -65,7 +65,7 @@ class TrustRegionSQPFilter():
         self.n_eqcs, self.n_ineqcs = _check_constraints(eqcs=eqcs, ineqcs=ineqcs)
         self.eqcs = EqualityConstraints(eqcs=eqcs); 
         self.ineqcs = InequalityConstraints(ineqcs=ineqcs)
-        self.cf = cf
+        self.cf = CostFunction(func=cf)
         self.dataset = dataset
 
         pass
@@ -73,8 +73,11 @@ class TrustRegionSQPFilter():
     def __str__(self) -> str:
         return f"TrustRegionSQPFilter(n_eqcs={self.n_eqcs}, n_ineqcs={self.n_ineqcs})"
 
+    def create_model(self):
+        return
+
     def run(self):
         
-
+        self.create_model()
 
         pass
