@@ -63,14 +63,14 @@ class ModelImprovement:
                 new_f[pindex] = feval
                 
                 # create polynomials
-                lpolynomials = LagrangePolynomials(pdegree=2, input_symbols=self.input_symbols)
+                lpolynomials = LagrangePolynomials(input_symbols=self.input_symbols, pdegree=2)
                 lpolynomials.initialize(v=new_y, f=new_f, sort_type=sort_type, tr_radius=tr_radius)       
                 
                 # save polynomial with the smallest poisedness
                 if Lambda < curr_Lambda:
 
                     curr_Lambda = Lambda*1
-                    best_polynomial = LagrangePolynomials(pdegree=2, input_symbols=self.input_symbols)
+                    best_polynomial = LagrangePolynomials(input_symbols=self.input_symbols, pdegree=2)
                     
                     best_polynomial.initialize(v=new_y, f=new_f, sort_type=sort_type, tr_radius=tr_radius)
                     

@@ -83,7 +83,7 @@ class Poisedness:
     
 
 class LagrangePolynomials:
-    def __init__(self, pdegree:int = 2, input_symbols=None):
+    def __init__(self,  input_symbols, pdegree:int = 2):
         """ This class should be able to generate lagrange polynomials given the samples
 
         Args:

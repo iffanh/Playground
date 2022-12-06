@@ -85,7 +85,7 @@ class TrustRegion:
     def __init__(self, input_symbols, dataset, results, func:callable, eq_const:List[EqualityConstraint]) -> None:
         
         self.input_symbols = input_symbols
-        self.polynomial = LagrangePolynomials(pdegree=2, input_symbols=input_symbols)
+        self.polynomial = LagrangePolynomials(input_symbols=input_symbols, pdegree=2)
         self.polynomial.initialize(v=dataset, f=results)
         self.func = func
         self.sp = None
@@ -205,7 +205,7 @@ class TrustRegion:
             _my[:, -1] = x_opt
             _mf[-1] = func(x_opt)
             
-            m_inc = LagrangePolynomials(pdegree=2, input_symbols=self.input_symbols)
+            m_inc = LagrangePolynomials(input_symbols=self.input_symbols, pdegree=2)
             m_inc.initialize(v=_my, f=_mf, sort_type="function", tr_radius=rad)
             
             #  // TODO elif rho >= eta0: we need to first create a function to detect fully linear/quadratic condition
@@ -213,7 +213,7 @@ class TrustRegion:
         else:
             # Step 4 in Algorithm 10.3
             status = "Trial_point: Model improving"
-            m_inc = LagrangePolynomials(pdegree=2, input_symbols=self.input_symbols)
+            m_inc = LagrangePolynomials(input_symbols=self.input_symbols, pdegree=2)
             m_inc.initialize(v=m.y, f=m.f, sort_type="function", tr_radius=rad)
 
             center = m_inc.sample_set.ball.center
