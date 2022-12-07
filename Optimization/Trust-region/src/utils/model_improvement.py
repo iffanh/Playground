@@ -50,6 +50,16 @@ class ModelImprovement:
                 model_improvement_status['points_replaced'] += 1
                 # find new point and its OF
                 new_point = poisedness.point_to_max_poisedness()
+                
+                is_redundant = False
+                for ii in range(lpolynomials.y.shape[1]):
+                    if (new_point == lpolynomials.y[:,ii]).all():
+                        is_redundant = True
+                        break
+                
+                if is_redundant:
+                    break
+                
                 feval = func(new_point)
 
                 # copy values
@@ -87,20 +97,20 @@ class ModelImprovement:
                 ## TODO: Maybe algorithm 6.2
                     
                 # break
-                # rad_ratio = rad/lpolynomials.sample_set.ball.rad
-                # if rad_ratio < 1.0:
-                #     new_y = (lpolynomials.y - lpolynomials.sample_set.ball.center[:,np.newaxis])*rad_ratio + lpolynomials.sample_set.ball.center[:,np.newaxis]
-                #     results = []
-                #     for i in range(new_y.shape[1]):
-                #         x = new_y[:, i]
-                #         results.append(func(x))
-                #     new_f = np.array(results)
+                rad_ratio = rad/lpolynomials.sample_set.ball.rad
+                if rad_ratio < 1.0:
+                    new_y = (lpolynomials.y - lpolynomials.sample_set.ball.center[:,np.newaxis])*rad_ratio + lpolynomials.sample_set.ball.center[:,np.newaxis]
+                    results = []
+                    for i in range(new_y.shape[1]):
+                        x = new_y[:, i]
+                        results.append(func(x))
+                    new_f = np.array(results)
                     
-                #     best_polynomial = LagrangePolynomials(pdegree=2)
-                #     best_polynomial.initialize(v=new_y, f=new_f, sort_type=sort_type)  
+                    best_polynomial = LagrangePolynomials(input_symbols=self.input_symbols, pdegree=2)
+                    best_polynomial.initialize(v=new_y, f=new_f, sort_type=sort_type)  
                     
-                #     model_improvement_status['points_replaced'] += new_y.shape[1] - 1
-                #     model_improvement_status['radius_changed'] = True
+                    model_improvement_status['points_replaced'] += new_y.shape[1] - 1
+                    model_improvement_status['radius_changed'] = True
                     
                 break
             

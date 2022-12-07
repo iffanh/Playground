@@ -24,13 +24,13 @@ from .generate_poised_sets import SampleSets
 class PolynomialBase:
     def __init__(self, symbol, feval:callable) -> None:
         
-        self.symbol = symbol
+        self.symbol = ca.simplify(symbol)
         self.feval = feval
         
 class LagrangePolynomial:
     def __init__(self, symbol, feval:callable) -> None:
         
-        self.symbol = symbol
+        self.symbol = ca.simplify(symbol)
         self.feval = feval
         self.max_sol = None
         
@@ -58,7 +58,7 @@ class LagrangePolynomial:
 class ModelPolynomial:
     def __init__(self, symbol, feval:callable) -> None:
         
-        self.symbol = symbol
+        self.symbol = ca.simplify(symbol)
         self.feval = feval
         
 class Poisedness:
@@ -358,7 +358,7 @@ class LagrangePolynomials:
             Tuple[List[PolynomialBase], list]: List of polynomial bases and input symbols
         """
 
-        Ndim = len(exponents[0])
+        # Ndim = len(exponents[0])
         # input_symbols = SX.sym('x', Ndim) #[x1, x2, x3 ... xNdim]
         basis = []
         for (exps, coef) in zip(exponents, coefficients):
