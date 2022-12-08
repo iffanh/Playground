@@ -83,7 +83,7 @@ class Poisedness:
     
 
 class LagrangePolynomials:
-    def __init__(self, pdegree:int = 2, input_symbols=None):
+    def __init__(self, pdegree:int, input_symbols):
         """ This class should be able to generate lagrange polynomials given the samples
 
         Args:
@@ -359,7 +359,6 @@ class LagrangePolynomials:
         """
 
         Ndim = len(exponents[0])
-        # input_symbols = SX.sym('x', Ndim) #[x1, x2, x3 ... xNdim]
         basis = []
         for (exps, coef) in zip(exponents, coefficients):
             b = 1

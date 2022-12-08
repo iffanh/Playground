@@ -19,7 +19,6 @@ class SubProblem:
         self.polynomial = polynomial
         self.eq_const = eq_const
         self.sol = self._solve_path(radius, eq_const)
-#         self.path = self._solve_path_from_lambda(radius=radius).T
 
     def _calculate_pb(self, g:np.ndarray, B:np.ndarray) -> np.ndarray:
         return -np.matmul(np.linalg.pinv(B), g).T[0]
@@ -33,7 +32,7 @@ class SubProblem:
             if np.abs(nominator) < 10E-5:
                 is_hard_case = True
             
-            nominators.append(nominator)
+            nominators.appendd(nominator)
 
         return np.array(nominators), is_hard_case
     
@@ -64,7 +63,7 @@ class SubProblem:
             lbg.append(0.); ubg.append(0.)
             
         g = ca.vertcat(*g)
-        
+
         nlp = {'f': self.polynomial.model_polynomial.symbol, 'g':g, 'x':self.polynomial.input_symbols}
         
         opts = dict()
@@ -232,11 +231,7 @@ class TrustRegion:
     
     def step_calculation(self, m:LagrangePolynomials, rad:float, eq_const) -> np.ndarray:
         # Step 2 of Algorithm 10.3
-        
-#         optimal_path = self.solve_subproblem(m, rad=rad, eq_const=eq_const).path
-#         optimal_solution = m.sample_set.ball.center + optimal_path
-        
-#         return optimal_solution
+    
         return self.solve_subproblem(m, rad=rad, eq_const=eq_const)
         
     def criticality_step(self, m_inc:LagrangePolynomials, func:callable, sigma_inc:float, eps_c:float, rad_inc:float, mu:float, beta:float, omega:float, L:float) -> Tuple[LagrangePolynomials, float]:
@@ -297,10 +292,7 @@ class TrustRegion:
     
     def solve_subproblem(self, polynomial:LagrangePolynomials, rad:float, eq_const) -> SubProblem:
         
-        # if rad: 
         self.sp = SubProblem(polynomial, radius=rad, eq_const=eq_const)
-        # else:
-        #     self.sp = SubProblem(polynomial, radius=self.rad)
         
         return self.sp.sol
     

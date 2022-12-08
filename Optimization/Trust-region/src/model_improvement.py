@@ -33,13 +33,14 @@ class ModelImprovement:
             poisedness = lpolynomials.poisedness(rad=rad, center=center)
             Lambda = poisedness.max_poisedness()
             
-            if poisedness.index == 0:
-                fr = poisedness.poisedness
-                n = 2
-                pindex = [fr.index(i) for i in sorted(fr, reverse=True)][n]
+            # if poisedness.index == 0:
+            #     fr = poisedness.poisedness
+            #     n = 2
+            #     pindex = [fr.index(i) for i in sorted(fr, reverse=True)][n]
 
-            else:
-                pindex = poisedness.index
+            # else:
+            ## TODO: Any ideas on how to circumvent the replacement of the best point?
+            pindex = poisedness.index
                 
             if k == 0:
                 best_polynomial = lpolynomials
@@ -51,13 +52,22 @@ class ModelImprovement:
                 # find new point and its OF
                 new_point = poisedness.point_to_max_poisedness()
                 feval = func(new_point)
+                
+                is_new_point_a_duplicate = False
+                for i in range(lpolynomials.y.shape[1]):
+                    if (new_point == lpolynomials.y[:,i]).all():
+                        print("Point already exist")
+                        is_new_point_a_duplicate = True
+                        break
+                if is_new_point_a_duplicate:
+                    break
+                    
 
                 # copy values
                 new_y = lpolynomials.y*1
                 new_f = lpolynomials.f*1
                 tr_radius = lpolynomials.tr_radius*1
                 
-            
                 # replace value
                 new_y[:, pindex] = new_point
                 new_f[pindex] = feval
@@ -83,24 +93,22 @@ class ModelImprovement:
                 # - if not, scale the outside points with the said radius
                 # - should have some look up table to see whether points inside are available
                 
-                print("what to do here")
                 ## TODO: Maybe algorithm 6.2
                     
-                # break
-                # rad_ratio = rad/lpolynomials.sample_set.ball.rad
-                # if rad_ratio < 1.0:
-                #     new_y = (lpolynomials.y - lpolynomials.sample_set.ball.center[:,np.newaxis])*rad_ratio + lpolynomials.sample_set.ball.center[:,np.newaxis]
-                #     results = []
-                #     for i in range(new_y.shape[1]):
-                #         x = new_y[:, i]
-                #         results.append(func(x))
-                #     new_f = np.array(results)
+                rad_ratio = rad/lpolynomials.sample_set.ball.rad
+                if rad_ratio < 1.0:
+                    new_y = (lpolynomials.y - lpolynomials.sample_set.ball.center[:,np.newaxis])*rad_ratio + lpolynomials.sample_set.ball.center[:,np.newaxis]
+                    results = []
+                    for i in range(new_y.shape[1]):
+                        x = new_y[:, i]
+                        results.append(func(x))
+                    new_f = np.array(results)
                     
-                #     best_polynomial = LagrangePolynomials(pdegree=2)
-                #     best_polynomial.initialize(v=new_y, f=new_f, sort_type=sort_type)  
+                    best_polynomial = LagrangePolynomials(pdegree=2, input_symbols=self.input_symbols)
+                    best_polynomial.initialize(v=new_y, f=new_f, sort_type=sort_type, tr_radius=rad)  
                     
-                #     model_improvement_status['points_replaced'] += new_y.shape[1] - 1
-                #     model_improvement_status['radius_changed'] = True
+                    model_improvement_status['points_replaced'] += new_y.shape[1] - 1
+                    model_improvement_status['radius_changed'] = True
                     
                 break
             
