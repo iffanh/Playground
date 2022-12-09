@@ -1,5 +1,10 @@
 class SimulationManager():
-    def __init__(self) -> None:
+    def __init__(self, cf, eqcs, ineqcs) -> None:
+        
+        self.eqcs = EqualityConstraints(eqcs=eqcs); 
+        self.ineqcs = InequalityConstraints(ineqcs=ineqcs)
+        self.cf = CostFunction(func=cf)
+        
         pass
 
 class CostFunction():

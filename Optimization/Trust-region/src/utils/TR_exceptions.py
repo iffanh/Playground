@@ -5,3 +5,11 @@ class IncorrectConstantsException(Exception):
 class TRQPIncompatible(Exception):
     """Raised when TRQP is NOT Compatible"""
     pass
+
+class EndOfAlgorithm(Exception):
+    """
+    Raised when : 
+    
+    1. restoration phase is impossible to compute
+    """
+    pass

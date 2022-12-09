@@ -3,13 +3,16 @@ import casadi as ca
 from typing import Tuple
 
 from .model_manager import ModelManager
-from .TR_exceptions import TRQPIncompatible
+from .TR_exceptions import TRQPIncompatible, EndOfAlgorithm
+
+import warnings
+warnings.filterwarnings("ignore")
 
 class TRQP():
     def __init__(self, models:ModelManager, radius:float) -> None:
-        self.sol, self.is_compatible = self.invoke_composite_step(models, radius)
+        self.sol, self.radius, self.is_compatible = self.invoke_composite_step(models, radius)
 
-    def invoke_composite_step(self, models:ModelManager, radius:float) -> Tuple[dict, bool]:
+    def invoke_composite_step(self, models:ModelManager, radius:float) -> Tuple[np.ndarray, float, bool]:
         ## construct TQRP problem (page 722, Chapter 15: Sequential Quadratic Programming)
         data = models.m_cf.model.y
         center = data[:,0]
@@ -55,8 +58,10 @@ class TRQP():
             'g': ca.vertcat(g_eq, g_ineq, g_r)
         }
 
+        opts = {'ipopt.print_level':0, 'print_time':0}
+        
         # solve TRQP problem
-        solver = ca.nlpsol('TRQP', 'ipopt', nlp)
+        solver = ca.nlpsol('TRQP_composite', 'ipopt', nlp, opts)
 
         sol = solver(x0=center, ubg=ubg, lbg=lbg)
 
@@ -68,10 +73,35 @@ class TRQP():
                 if not solver.stats()['success']:
                     TRQPIncompatible(f"TRQP is incompatible. Invoke restoration step")
         except TRQPIncompatible:
-            sol = self.invoke_restoration_step(models, radius)
+            sol, radius = self.invoke_restoration_step(models, radius)
             is_compatible = False
 
-        return sol, is_compatible
+        return sol['x'], radius, is_compatible
 
     def invoke_restoration_step(self, models:ModelManager, radius:float):
-        return
+        
+        print(f"Invoke restoration step")
+        radius = 2*radius
+        ubg = [radius]
+        lbg = [0]
+        
+        input_symbols = models.input_symbols
+        data = models.m_cf.model.y
+        center = data[:,0]
+            
+        nlp = {
+            'x': input_symbols,
+            'f': models.m_viol.symbol,
+            'g': ca.norm_2(center - input_symbols)
+        }
+        
+        opts = {'ipopt.print_level':0, 'print_time':0}
+        solver = ca.nlpsol('TRQP_restoration', 'ipopt', nlp, opts)
+        sol = solver(x0=center, ubg=ubg, lbg=lbg)
+        
+        if solver.stats()['success']:
+            pass
+        else:
+            EndOfAlgorithm(f"Impossible to compute restoration step. current iterate: {center}")
+        
+        return sol, radius
