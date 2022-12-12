@@ -15,7 +15,7 @@ import scipy
 import scipy.special
 import functools
 from scipy.optimize import minimize, NonlinearConstraint, Bounds
-from typing import Any, Tuple, List
+from typing import Any, Tuple, List, Optional
 import casadi as ca
 from casadi import Function, SX, DM, mtimes, vertcat, horzcat
 
@@ -108,11 +108,12 @@ class LagrangePolynomials:
         self.input_symbols = input_symbols
         
         
-    def initialize(self, v:np.ndarray, f:np.ndarray, sort_type:str='function', interpolation_type:str = 'frobenius', lpolynomials:List[LagrangePolynomial] = None, tr_radius:float = None):
+    def initialize(self, v:np.ndarray, f:Optional[np.ndarray] = None, sort_type:str='function', interpolation_type:str = 'frobenius', lpolynomials:List[LagrangePolynomial] = None, tr_radius:float = None):
         self.sample_set = SampleSets(v, sort_type=sort_type, f=f)
         
         self.y = self.sample_set.y
-        self.f = f[self.sample_set.sorted_index]
+        # self.f = f[self.sample_set.sorted_index]
+        self.f = f
         
         if tr_radius is None:
             self.tr_radius = self.sample_set.ball.rad
@@ -142,8 +143,10 @@ class LagrangePolynomials:
             self.lagrange_polynomials = lpolynomials
              
         self.model_polynomial = self._build_model_polynomial(self.lagrange_polynomials, self.f, self.input_symbols)
-        
-        self.gradient, self.Hessian = self._get_coefficients_from_expression(self.model_polynomial.symbol, self.input_symbols, self.pdegree)    
+        if self.model_polynomial is None:
+            self.gradient, self.Hessian = None, None
+        else: 
+            self.gradient, self.Hessian = self._get_coefficients_from_expression(self.model_polynomial.symbol, self.input_symbols, self.pdegree)    
         
         self.index_of_largest_lagrangian_norm = None
     
@@ -254,12 +257,14 @@ class LagrangePolynomials:
             ModelPolynomial: Model polynomial
         """
 
-        polynomial_sum = 0 
-        for i in range(len(lagrange_polynomials)):
-            polynomial_sum += lagrange_polynomials[i].symbol*f[i]
-        
-        # polynomial_sum = ca.simplify(polynomial_sum)
-        return ModelPolynomial(polynomial_sum, Function(f'm_f', [input_symbols], [polynomial_sum]))
+        if f is None:
+            return None
+        else:
+            polynomial_sum = 0 
+            for i in range(len(lagrange_polynomials)):
+                polynomial_sum += lagrange_polynomials[i].symbol*f[i]
+            
+            return ModelPolynomial(polynomial_sum, Function(f'm_f', [input_symbols], [polynomial_sum]))
     
     def _build_lagrange_polynomials(self, basis:List[PolynomialBase], data_points:np.ndarray, input_symbols:list) -> List[LagrangePolynomial]:
         """ Responsible for generating the lagrange polynomials using Cramer's rule: 

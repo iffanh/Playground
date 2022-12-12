@@ -3,10 +3,11 @@ import casadi as ca
 from typing import List, Tuple
 
 from .utils.TR_exceptions import IncorrectConstantsException
-from .utils.simulation_manager import SimulationManager, CostFunction, EqualityConstraints, InequalityConstraints
-from .utils.model_manager import ModelManager, CostFunctionModel, EqualityConstraintModels, InequalityConstraintModels, ViolationModel
+from .utils.simulation_manager import SimulationManager
+from .utils.model_manager import SetGeometry, ModelManager, CostFunctionModel, EqualityConstraintModels, InequalityConstraintModels, ViolationModel
 from .utils.trqp import TRQP
 from .utils.filter import FilterSQP
+# from .utils.lagrange_polynomial import LagrangePolynomials
 
 class TrustRegionSQPFilter():
     def __init__(self, constants:dict, dataset:np.ndarray, cf:callable, eqcs:List[callable], ineqcs:List[callable]) -> None:
@@ -68,6 +69,8 @@ class TrustRegionSQPFilter():
         self.sm = SimulationManager(cf, eqcs, ineqcs) # Later this will be refactored for reservoir simulation
 
         self.dataset = dataset
+        
+        self.input_symbols = ca.SX.sym('x', self.dataset.shape[0])
 
         pass
 
@@ -76,33 +79,65 @@ class TrustRegionSQPFilter():
 
     def run_simulations(self, Y):
 
-        input_symbols = ca.SX.sym('x', Y.shape[0])
-
         # run cost function and build the corresponding model
-        fY = self.sm.cf.func(Y)
-        m_cf = CostFunctionModel(input_symbols=input_symbols, 
+        fY_cf = self.sm.cf.func(Y)
+        # do the same with equality constraints
+        fYs_eq = []
+        for eqc in self.sm.eqcs.eqcs:
+            fY = eqc.func(Y)
+            fYs_eq.append(fY)
+
+        # do the same with inequality constraints
+        fYs_ineq = []
+        for ineqc in self.sm.ineqcs.ineqcs:
+            fY = ineqc.func(Y)
+            fYs_ineq.append(fY)
+        
+        # # create violation function Eq 15.5.3
+        # v = 0.0
+        # for m in m_eqcs.models:
+        #     v = ca.fmax(v, ca.fabs(m.model.model_polynomial.symbol))
+        
+        # for m in m_ineqcs.models:
+        #     v = ca.fmax(v, -m.model.model_polynomial.symbol)
+            
+        self.violations = []
+        for i in range(Y.shape[1]):
+            
+            v = 0.0
+            for i in range(self.sm.eqcs.n_eqcs):
+                v = ca.fmax(v, ca.fabs(fYs_eq[i]))
+            
+            for i in range(self.sm.ineqcs.n_ineqcs):
+                v = ca.fmax(v, -fYs_ineq[i])
+            
+            self.violations.append(0.0)
+        
+        self.violations = np.array(self.violations)
+        
+        ## Here we reorder such that the center is the best point
+        sorted_index = self.violations.argsort()
+        Y = Y[:, sorted_index]
+        fY = fY[sorted_index]
+        
+        fYs_eq = [f[sorted_index] for f in fYs_eq]
+        fYs_ineq = [f[sorted_index] for f in fYs_ineq]
+                
+        m_cf = CostFunctionModel(input_symbols=self.input_symbols, 
                                  Y=Y, 
                                  fY=fY)
 
-        # do the same with equality constraints
-        fYs = []
-        for eqc in self.sm.eqcs.eqcs:
-            fY = eqc.func(Y)
-            fYs.append(fY)
-        m_eqcs = EqualityConstraintModels(input_symbols=input_symbols, 
-                                          Y=Y, 
-                                          fYs=fYs)
+        m_eqcs = EqualityConstraintModels(input_symbols=self.input_symbols, 
+                                    Y=Y, 
+                                    fYs=fYs_eq)
 
-        # do the same with inequality constraints
-        fYs = []
-        for ineqc in self.sm.ineqcs.ineqcs:
-            fY = ineqc.func(Y)
-            fYs.append(fY)
-        m_ineqcs = InequalityConstraintModels(input_symbols=input_symbols, Y=Y, fYs=fYs)
+        m_ineqcs = InequalityConstraintModels(input_symbols=self.input_symbols, 
+                                              Y=Y, 
+                                              fYs=fYs_ineq)
         
-        m_viol = ViolationModel(input_symbols=input_symbols, m_eqcs=m_eqcs, m_ineqcs=m_ineqcs, Y=Y)
+        m_viol = ViolationModel(input_symbols=self.input_symbols, m_eqcs=m_eqcs, m_ineqcs=m_ineqcs, Y=Y)
 
-        return ModelManager(input_symbols=input_symbols, m_cf=m_cf, m_eqcs=m_eqcs, m_ineqcs=m_ineqcs, m_viol=m_viol)
+        return ModelManager(input_symbols=self.input_symbols, m_cf=m_cf, m_eqcs=m_eqcs, m_ineqcs=m_ineqcs, m_viol=m_viol)
 
     def run_single_simulation(self, y:np.ndarray) -> Tuple[float, float]:
         fy = self.sm.cf.func(y)
@@ -123,42 +158,65 @@ class TrustRegionSQPFilter():
             
         return fy, v
 
-    def solve_TRQP(self, models:ModelManager, radius:float):
+    def solve_TRQP(self, models:ModelManager, radius:float) -> Tuple[np.ndarray, float, bool]:
         trqp_mod = TRQP(models, radius)
         sol = trqp_mod.sol.full()[:,0]
         is_trqp_compatible = trqp_mod.is_compatible
         radius = trqp_mod.radius
         return sol, radius, is_trqp_compatible
     
-    def change_point(self, models:ModelManager, Y:np.ndarray, y_next:np.ndarray, radius:float) -> np.ndarray:
+    def change_point(self, models:ModelManager, Y:np.ndarray, y_next:np.ndarray, radius:float, replace_type:str) -> np.ndarray:
         
-        # Change point with largest poisedness
-        poisedness = models.m_cf.model.poisedness(rad=radius, center=Y[:,0])
-        # index to replace -> poisedness.index
-        new_Y = Y*1
-        new_Y[:, poisedness.index] = y_next
+        if replace_type == 'improve_model':
+            # Change point with largest poisedness
+            poisedness = models.m_cf.model.poisedness(rad=radius, center=Y[:,0])
+            # index to replace -> poisedness.index
+            new_Y = Y*1
+            new_Y[:, poisedness.index] = y_next
+        elif replace_type == 'worst_point': 
+            worst_index = models.m_cf.model.f.argsort()[-1]
+            new_Y = Y*1
+            new_Y[:, worst_index] = y_next
         
         return new_Y
 
-    def run(self, max_iter=5):
+    def run(self, max_iter=15):
         
         # initialize filter
         self.filter_SQP = FilterSQP(constants=self.constants)
         radius = self.constants['init_radius']
         Y = self.dataset*1
-        
-        
+
         self.iterates = []
         for k in range(max_iter):
             
             print(f"================={k}=================")
+            self.models = self.run_simulations(Y=Y)
+            Y = self.models.m_cf.model.y*1
             y_curr = Y[:,0]
-            self.iterates.append(Y)
-            self.models = self.run_simulations(Y)
+            
+            iterates = dict()
+            iterates['Y'] = Y
+            iterates['fY'] = self.models.m_cf.model.f
+            iterates['v'] = self.models.m_viol.violations
+            iterates['y_curr'] = Y[:,0]
+            iterates['radius'] = radius
+            iterates['models'] = self.models
+            
+            self.iterates.append(iterates)
             
             poisedness = self.models.m_cf.model.poisedness(rad=radius, center=Y[:,0])
+            print(f"poisedness = {poisedness.max_poisedness()}")
             if poisedness.max_poisedness() > self.constants['L_threshold']:
                 print(f"We have to fix the model")
+                sg = SetGeometry(input_symbols=self.input_symbols, Y=Y, rad=radius, L=self.constants['L_threshold'])
+                sg.improve_geometry()        
+                improved_model = sg.model
+                self.models = self.run_simulations(Y=improved_model.y)
+                Y = improved_model.y
+            
+            poisedness = self.models.m_cf.model.poisedness(rad=radius, center=Y[:,0])
+            print(f"poisedness after improvement = {poisedness.max_poisedness()}")
             
             if k == 0:
                 _fy = self.models.m_cf.model.f
@@ -176,7 +234,7 @@ class TrustRegionSQPFilter():
                 is_acceptable_in_the_filter = self.filter_SQP.add_to_filter((fy_next, v_next))
 
                 if is_acceptable_in_the_filter:
-                    print(f"Acceptable in the filter")
+                    # print(f"Acceptable in the filter")
                     
                     v_curr = self.models.m_viol.feval(y_curr)
                     
@@ -184,9 +242,11 @@ class TrustRegionSQPFilter():
                     mfy_next = self.models.m_cf.model.model_polynomial.feval(y_next)
                     fy_curr = self.models.m_cf.model.f[0]
                     
+                    rho = (fy_curr - fy_next)/(mfy_curr - mfy_next)
+                    print(f"rho = {rho}")
+                        
                     if mfy_curr - mfy_next >= self.constants['kappa_vartheta']*(v_curr**2):
                         print(f"With sufficient decrease")
-                        rho = (fy_curr - fy_next)/(mfy_curr - mfy_next)
                         
                         if rho < self.constants['eta_1']:
                             print(f"Not good enough model")
@@ -195,22 +255,24 @@ class TrustRegionSQPFilter():
 
                         else:
                             print(f"Good enough model")
-                            Y = self.change_point(self.models, Y, y_next, radius)
                             
                             if rho >= self.constants['eta_2']:
                                 radius = radius*self.constants['gamma_2']
+                                Y = self.change_point(self.models, Y, y_next, radius, 'worst_point')
                             else:
                                 radius = radius*self.constants['gamma_1']
+                                Y = self.change_point(self.models, Y, y_next, radius, 'improve_model')
                                 
                     else:
-                        print(f"No sufficient decrease")
+                        # print(f"No sufficient decrease")
                         self.filter_SQP.add_to_filter((fy_next, v_next))
-                        Y = self.change_point(self.models, Y, y_next, radius)
                             
                         if rho >= self.constants['eta_2']:
                             radius = radius*self.constants['gamma_2']
+                            Y = self.change_point(self.models, Y, y_next, radius, 'worst_point')
                         else:
                             radius = radius*self.constants['gamma_1']
+                            Y = self.change_point(self.models, Y, y_next, radius, 'improve_model')
                     
                     pass
                 
@@ -222,9 +284,15 @@ class TrustRegionSQPFilter():
             else:
                 print(f"TRQP Incompatible")
                 fy_curr = self.models.m_cf.model.f[0]
-                v_curr = self.models.m_viol.feval(self.y_curr)
+                v_curr = self.models.m_viol.feval(y_curr)
                 _ = self.filter_SQP.add_to_filter((fy_curr, v_curr))
                 
-                Y = self.change_point(self.models, Y, y_next, radius)
+                # Y = self.change_point(self.models, Y, y_next, radius, 'improve_model')
+                shift = y_next - Y[:,0]
+                print(f"shift = {shift}")
                 
+                print(f"before = {Y}")
+                Y = Y + shift[:,np.newaxis]          
+                print(f"after = {Y}")            
+                    
         pass

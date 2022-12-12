@@ -62,26 +62,34 @@ class TRQP():
         
         # solve TRQP problem
         solver = ca.nlpsol('TRQP_composite', 'ipopt', nlp, opts)
-
         sol = solver(x0=center, ubg=ubg, lbg=lbg)
 
+        # is_compatible = True
+        # try:
+        #     print(solver.stats())
+        #     if not solver.stats()['success']:
+        #         print(f"fail with center as initial point")
+        #         sol = solver(x0=center+(radius/100), ubg=ubg, lbg=lbg)
+        #         if not solver.stats()['success']:
+        #             TRQPIncompatible(f"TRQP is incompatible. Invoke restoration step")
+        # except TRQPIncompatible:
+        #     sol, radius = self.invoke_restoration_step(models, radius)
+        #     is_compatible = False
+            
         is_compatible = True
-        try:
+        if not solver.stats()['success']:
+            print(f"fail with center as initial point")
+            sol = solver(x0=center+(radius/10), ubg=ubg, lbg=lbg)
             if not solver.stats()['success']:
-                print(f"fail with center as initial point")
-                sol = solver(x0=center+radius/10, ubg=ubg, lbg=lbg)
-                if not solver.stats()['success']:
-                    TRQPIncompatible(f"TRQP is incompatible. Invoke restoration step")
-        except TRQPIncompatible:
-            sol, radius = self.invoke_restoration_step(models, radius)
-            is_compatible = False
+                sol, radius = self.invoke_restoration_step(models, radius)
+                is_compatible = False
 
         return sol['x'], radius, is_compatible
 
     def invoke_restoration_step(self, models:ModelManager, radius:float):
         
         print(f"Invoke restoration step")
-        radius = 2*radius
+        # radius = 2*radius
         ubg = [radius]
         lbg = [0]
         

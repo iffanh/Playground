@@ -1,7 +1,38 @@
 import numpy as np
+import casadi as ca
 from typing import List
 from .lagrange_polynomial import LagrangePolynomials
-import casadi as ca
+from .model_improvement_without_feval import ModelImprovement
+
+class SetGeometry():
+    def __init__(self, input_symbols, Y:np.ndarray, rad:float=None, L:float=1.5) -> None:
+        
+        self.input_symbols = input_symbols
+        self.Y = Y*1
+        self.rad = rad
+        self.L = L
+        self.model = LagrangePolynomials(input_symbols=input_symbols, pdegree=2)
+        self.model.initialize(v=Y, f=None, tr_radius=rad)
+        
+    def poisedness(self) -> float:
+        
+        if self.rad is None: 
+            self.rad = self.model.sample_set.ball.rad*1
+            p = self.model.poisedness(rad=self.rad, center=self.Y[:,0]).poisedness
+        else:
+            p = self.model.poisedness(rad=self.rad, center=self.Y[:,0]).poisedness
+            
+        return p
+    
+    def improve_geometry(self): 
+        
+        mi = ModelImprovement(input_symbols=self.input_symbols)
+        self.model = mi.improve_model(lpolynomials=self.model, 
+                                        rad=self.rad, 
+                                        center=self.Y[:,0],
+                                        L=self.L, 
+                                        max_iter=15)
+        
 
 class CostFunctionModel():
     def __init__(self, input_symbols, Y:np.ndarray, fY:np.ndarray) -> None:
