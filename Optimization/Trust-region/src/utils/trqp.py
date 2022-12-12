@@ -16,7 +16,7 @@ class TRQP():
         ## construct TQRP problem (page 722, Chapter 15: Sequential Quadratic Programming)
         data = models.m_cf.model.y
         center = data[:,0]
-        
+         
         input_symbols = models.input_symbols
 
         # Cost function
@@ -64,25 +64,25 @@ class TRQP():
         solver = ca.nlpsol('TRQP_composite', 'ipopt', nlp, opts)
         sol = solver(x0=center, ubg=ubg, lbg=lbg)
 
-        # is_compatible = True
-        # try:
-        #     print(solver.stats())
-        #     if not solver.stats()['success']:
-        #         print(f"fail with center as initial point")
-        #         sol = solver(x0=center+(radius/100), ubg=ubg, lbg=lbg)
-        #         if not solver.stats()['success']:
-        #             TRQPIncompatible(f"TRQP is incompatible. Invoke restoration step")
-        # except TRQPIncompatible:
-        #     sol, radius = self.invoke_restoration_step(models, radius)
-        #     is_compatible = False
-            
         is_compatible = True
-        if not solver.stats()['success']:
-            print(f"fail with center as initial point")
-            sol = solver(x0=center+(radius/10), ubg=ubg, lbg=lbg)
+        try:
+            # print(solver.stats())
             if not solver.stats()['success']:
-                sol, radius = self.invoke_restoration_step(models, radius)
-                is_compatible = False
+                print(f"fail with center as initial point")
+                sol = solver(x0=center+(radius/100), ubg=ubg, lbg=lbg)
+                if not solver.stats()['success']:
+                    raise TRQPIncompatible(f"TRQP is incompatible. Invoke restoration step")
+        except TRQPIncompatible:
+            sol, radius = self.invoke_restoration_step(models, radius)
+            is_compatible = False
+            
+        # is_compatible = True
+        # if not solver.stats()['success']:
+        #     print(f"fail with center as initial point")
+        #     sol = solver(x0=center+(radius/10), ubg=ubg, lbg=lbg)
+        #     if not solver.stats()['success']:
+        #         sol, radius = self.invoke_restoration_step(models, radius)
+        #         is_compatible = False
 
         return sol['x'], radius, is_compatible
 
@@ -103,13 +103,16 @@ class TRQP():
             'g': ca.norm_2(center - input_symbols)
         }
         
-        opts = {'ipopt.print_level':0, 'print_time':0}
+        # opts = {'ipopt.print_level':0, 'print_time':0}
+        
+        opts = dict()
         solver = ca.nlpsol('TRQP_restoration', 'ipopt', nlp, opts)
         sol = solver(x0=center, ubg=ubg, lbg=lbg)
-        
+        print(f"solver.stats()['success'] = {solver.stats()['success']}")
         if solver.stats()['success']:
             pass
         else:
-            EndOfAlgorithm(f"Impossible to compute restoration step. current iterate: {center}")
+            print(f"HAAAAA")
+            raise EndOfAlgorithm(f"Impossible to compute restoration step. current iterate: {center}")
         
         return sol, radius

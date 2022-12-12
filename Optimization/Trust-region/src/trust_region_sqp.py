@@ -15,46 +15,46 @@ class TrustRegionSQPFilter():
         def _check_constants(constants:dict) -> dict:
 
             if constants["gamma_0"] <= 0.0:
-                IncorrectConstantsException(f"gamma_0 has to be larger than 0. Got {constants['gamma_0']}")
+                raise IncorrectConstantsException(f"gamma_0 has to be larger than 0. Got {constants['gamma_0']}")
 
             if constants["gamma_1"] <= constants["gamma_0"]:
-                IncorrectConstantsException(f"gamma_1 must be strictly larger than gamma_0. Got gamma_1 = {constants['gamma_1']} and gamma_0 = {constants['gamma_0']}")
+                raise IncorrectConstantsException(f"gamma_1 must be strictly larger than gamma_0. Got gamma_1 = {constants['gamma_1']} and gamma_0 = {constants['gamma_0']}")
 
             if constants["gamma_1"] >= 1.0:
-                IncorrectConstantsException(f"gamma_1 must be strictly less than 1. Got {constants['gamma_1']}")
+                raise IncorrectConstantsException(f"gamma_1 must be strictly less than 1. Got {constants['gamma_1']}")
 
             if constants["gamma_2"] < 1.0:
-                IncorrectConstantsException(f"gamma_2 must be larger than or equal to 1. Got {constants['gamma_2']}")
+                raise IncorrectConstantsException(f"gamma_2 must be larger than or equal to 1. Got {constants['gamma_2']}")
 
-            if constants["eta_1"] >= 0.0:
-                IncorrectConstantsException(f"eta_1 must be strictly larger than 0. Got {constants['eta_1']}")
+            if constants["eta_1"] <= 0.0:
+                raise IncorrectConstantsException(f"eta_1 must be strictly larger than 0. Got {constants['eta_1']}")
 
-            if constants["eta_2"] > constants["eta_1"]:
-                IncorrectConstantsException(f"eta_2 must be larger than or equal to eta_1. Got eta_1 = {constants['eta_1']} and eta_2 = {constants['eta_2']}")
+            if constants["eta_2"] < constants["eta_1"]:
+                raise IncorrectConstantsException(f"eta_2 must be larger than or equal to eta_1. Got eta_1 = {constants['eta_1']} and eta_2 = {constants['eta_2']}")
 
             if constants["eta_2"] >= 1.0:
-                IncorrectConstantsException(f"eta_2 must be strictly less than 1. Got {constants['eta_2']}")
+                raise IncorrectConstantsException(f"eta_2 must be strictly less than 1. Got {constants['eta_2']}")
 
             if constants["gamma_vartheta"] <= 0 or constants["gamma_vartheta"] >= 1:
-                IncorrectConstantsException(f"gamma_vartheta must be between 0 and 1. Got {constants['gamma_vartheta']}") 
+                raise IncorrectConstantsException(f"gamma_vartheta must be between 0 and 1. Got {constants['gamma_vartheta']}") 
 
             if constants["kappa_vartheta"] <= 0 or constants["kappa_vartheta"] >= 1:
-                IncorrectConstantsException(f"kappa_vartheta must be between 0 and 1. Got {constants['kappa_vartheta']}")
+                raise IncorrectConstantsException(f"kappa_vartheta must be between 0 and 1. Got {constants['kappa_vartheta']}")
 
             if constants["kappa_radius"] <= 0 or constants["kappa_radius"] > 1:
-                IncorrectConstantsException(f"kappa_radius must be between 0 and 1. Got {constants['kappa_radius']}")
+                raise IncorrectConstantsException(f"kappa_radius must be between 0 and 1. Got {constants['kappa_radius']}")
 
             if constants["kappa_mu"] <= 0:
-                IncorrectConstantsException(f"kappa_mu must be strictly larger than 0. Got {constants['kappa_mu']}")
+                raise IncorrectConstantsException(f"kappa_mu must be strictly larger than 0. Got {constants['kappa_mu']}")
 
             if constants["mu"] <= 0 or constants["mu"] >= 1:
-                IncorrectConstantsException(f"mu must be between 0 and 1. Got {constants['mu']}")
+                raise IncorrectConstantsException(f"mu must be between 0 and 1. Got {constants['mu']}")
 
             if constants["kappa_tmd"] <= 0 or constants["kappa_tmd"] > 1:
-                IncorrectConstantsException(f"kappa_tmd must be between 0 and 1. Got {constants['kappa_tmd']}")
+                raise IncorrectConstantsException(f"kappa_tmd must be between 0 and 1. Got {constants['kappa_tmd']}")
 
             if constants["init_radius"] <= 0:
-                IncorrectConstantsException(f"Initial radius must be strictly positive. Got {constants['init_radius']}")
+                raise IncorrectConstantsException(f"Initial radius must be strictly positive. Got {constants['init_radius']}")
 
             return constants
 
@@ -125,7 +125,7 @@ class TrustRegionSQPFilter():
                 
         m_cf = CostFunctionModel(input_symbols=self.input_symbols, 
                                  Y=Y, 
-                                 fY=fY)
+                                 fY=fY_cf)
 
         m_eqcs = EqualityConstraintModels(input_symbols=self.input_symbols, 
                                     Y=Y, 
@@ -189,6 +189,10 @@ class TrustRegionSQPFilter():
 
         self.iterates = []
         for k in range(max_iter):
+
+            if radius < self.constants["stopping_radius"]:
+                print(f"Found a solution")
+                break
             
             print(f"================={k}=================")
             self.models = self.run_simulations(Y=Y)
@@ -264,7 +268,7 @@ class TrustRegionSQPFilter():
                                 Y = self.change_point(self.models, Y, y_next, radius, 'improve_model')
                                 
                     else:
-                        # print(f"No sufficient decrease")
+                        print(f"No sufficient decrease")
                         self.filter_SQP.add_to_filter((fy_next, v_next))
                             
                         if rho >= self.constants['eta_2']:
@@ -287,12 +291,12 @@ class TrustRegionSQPFilter():
                 v_curr = self.models.m_viol.feval(y_curr)
                 _ = self.filter_SQP.add_to_filter((fy_curr, v_curr))
                 
-                # Y = self.change_point(self.models, Y, y_next, radius, 'improve_model')
-                shift = y_next - Y[:,0]
-                print(f"shift = {shift}")
+                Y = self.change_point(self.models, Y, y_next, radius, 'improve_model')
+                # shift = y_next - Y[:,0]
+                # print(f"shift = {shift}")
                 
-                print(f"before = {Y}")
-                Y = Y + shift[:,np.newaxis]          
-                print(f"after = {Y}")            
+                # print(f"before = {Y}")
+                # Y = Y + shift[:,np.newaxis]          
+                # print(f"after = {Y}")            
                     
         pass

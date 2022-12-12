@@ -31,7 +31,7 @@ class SetGeometry():
                                         rad=self.rad, 
                                         center=self.Y[:,0],
                                         L=self.L, 
-                                        max_iter=15)
+                                        max_iter=25)
         
 
 class CostFunctionModel():
