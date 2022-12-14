@@ -10,20 +10,21 @@ class FilterSQP():
     
     def add_to_filter(self, coordinate:Tuple[float, float]):
         
-        if len(self.filters) == 0:
-            self.filters.append(coordinate)
+        for i, coord in enumerate(self.filters):
+                 
+            if coordinate[1] < (1 - self.constants['gamma_vartheta'])*coord[1] or coordinate[0] < coord[0] - self.constants['gamma_vartheta']*coordinate[1]: 
+                self.filters.append(coordinate)
+                return True
             
-            return True
+            if coordinate[1] < (1 - self.constants['gamma_vartheta'])*coord[1] and coordinate[0] < coord[0] - self.constants['gamma_vartheta']*coordinate[1]: 
+                self.filters[i] = coordinate
+                return True
+            
+            if coordinate[1] >= (1 - self.constants['gamma_vartheta'])*coord[1] and coordinate[0] >= coord[0] - self.constants['gamma_vartheta']*coordinate[1]:
+                return False
+            
+        self.filters.append(coordinate)
+        self.filters.sort(key=lambda x: x[1])
         
-        else:
-            for i, coord in enumerate(self.filters):
-                
-                # print(f"Condition 1: {coordinate[1] < (1 - self.constants['gamma_vartheta'])*coord[1]}")
-                # print(f"Condition 2: {coordinate[0] < coord[0] - self.constants['gamma_vartheta']*coordinate[1]}")
-                
-                if coordinate[1] < (1 - self.constants['gamma_vartheta'])*coord[1] or coordinate[0] < coord[0] - self.constants['gamma_vartheta']*coordinate[1]: 
-                    self.filters.append(coordinate)
-                    return True
-                
-            return False
+        return True
         
