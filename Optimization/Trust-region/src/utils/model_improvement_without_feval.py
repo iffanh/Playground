@@ -34,14 +34,16 @@ class ModelImprovement:
             pindex = poisedness.index
             if pindex == 0:
                 
+                print(f"Rebuild sample points")
+                
                 tr_radius = lpolynomials.tr_radius*1
                 new_y = lpolynomials.y*1
                 Y_remaining = lpolynomials.y[:, 1:]
                 shifts = lpolynomials.y[:, [0]] - np.mean(Y_remaining, axis=1)[:, np.newaxis]
                 new_y[:, 1:] = lpolynomials.y[:, 1:] + shifts
 
-                # for i in range(new_y.shape[1])
-                # new_y = lpolynomials.y - shifts
+                for i in range(1, new_y.shape[1]):
+                    new_y[:,i] = new_y[:,0] + (new_y[:,i] - new_y[:,0])*tr_radius/np.linalg.norm(new_y[:,i] - new_y[:,0])
 
                 lpolynomials = LagrangePolynomials(input_symbols=self.input_symbols, pdegree=2)
                 lpolynomials.initialize(v=new_y, f=None, sort_type=sort_type, tr_radius=tr_radius)   
