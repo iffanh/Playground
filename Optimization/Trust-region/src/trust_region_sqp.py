@@ -2,7 +2,7 @@ import numpy as np
 import casadi as ca
 from typing import List, Tuple
 
-from .utils.TR_exceptions import IncorrectConstantsException
+from .utils.TR_exceptions import IncorrectConstantsException, EndOfAlgorithm
 from .utils.simulation_manager import SimulationManager
 from .utils.model_manager import SetGeometry, ModelManager, CostFunctionModel, EqualityConstraintModels, InequalityConstraintModels, ViolationModel
 from .utils.trqp import TRQP
@@ -93,30 +93,43 @@ class TrustRegionSQPFilter():
             fY = ineqc.func(Y)
             fYs_ineq.append(fY)
         
-        # # create violation function Eq 15.5.3
-        # v = 0.0
-        # for m in m_eqcs.models:
-        #     v = ca.fmax(v, ca.fabs(m.model.model_polynomial.symbol))
-        
-        # for m in m_ineqcs.models:
-        #     v = ca.fmax(v, -m.model.model_polynomial.symbol)
-            
+        # # create violation function Eq 15.5.3            
         self.violations = []
-        for i in range(Y.shape[1]):
+        self.violations_eq = []
+        self.violations_ineq = []
+        for j in range(Y.shape[1]):
             
             v = 0.0
+            v_eq = 0.0
             for i in range(self.sm.eqcs.n_eqcs):
-                v = ca.fmax(v, ca.fabs(fYs_eq[i]))
-            
+                v = ca.fmax(v, ca.fabs(fYs_eq[i][j]))
+                v_eq = ca.fmax(v_eq, ca.fabs(fYs_eq[i][j]))
+                
+            v_ineq = 0.0
             for i in range(self.sm.ineqcs.n_ineqcs):
-                v = ca.fmax(v, -fYs_ineq[i])
+                # v = ca.fmax(v, -fYs_ineq[i][j])
+                v = ca.fmax(v, ca.fmax(0, -fYs_ineq[i][j]))
+                v_ineq = ca.fmax(v_ineq, ca.fmax(0, -fYs_ineq[i][j]))
             
-            self.violations.append(0.0)
+            self.violations.append(v)
+            self.violations_eq.append(-v_eq)
+            self.violations_ineq.append(-v_ineq)
         
         self.violations = np.array(self.violations)
-        
+         
         ## Here we reorder such that the center is the best point
-        sorted_index = self.violations.argsort()
+        indices = list(range(self.violations.shape[0]))
+        nearzero_viol = np.isclose(self.violations, 
+                                   np.array([0.0 for i in range(self.violations.shape[0])]), 
+                                   atol=1E-5)
+
+        fY_cf_list = list(-fY_cf)
+        
+        # triples = list(zip(nearzero_viol, self.violations_ineq, fY_cf_list, indices))
+        triples = list(zip(self.violations_eq, self.violations_ineq, fY_cf_list, indices))
+        triples.sort(key=lambda x:(x[0], x[1], x[2]), reverse=True)
+        
+        sorted_index = [ind[3] for ind in triples]
         Y = Y[:, sorted_index]
         fY = fY[sorted_index]
         
@@ -175,7 +188,7 @@ class TrustRegionSQPFilter():
             new_Y[:, poisedness.index] = y_next
         elif replace_type == 'worst_point': 
             worst_index = models.m_cf.model.f.argsort()[-1]
-            new_Y = Y*1
+            new_Y = models.m_cf.model.y*1
             new_Y[:, worst_index] = y_next
         
         return new_Y
@@ -191,7 +204,7 @@ class TrustRegionSQPFilter():
         for k in range(max_iter):
 
             if radius < self.constants["stopping_radius"]:
-                print(f"Found a solution")
+                print(f"Found a solution = {Y[:,0]}")
                 break
             
             print(f"================={k}=================")
@@ -229,9 +242,13 @@ class TrustRegionSQPFilter():
                 for ii in range(_v.shape[0]):
                     _ = self.filter_SQP.add_to_filter((_fy[ii], _v[ii]))
             
-            y_next, radius, self.is_trqp_compatible = self.solve_TRQP(models=self.models, radius=radius)
-            print(f"y_next = {y_next}")
-            
+            try:
+                y_next, radius, self.is_trqp_compatible = self.solve_TRQP(models=self.models, radius=radius)
+                print(f"y_next = {y_next}")
+            except EndOfAlgorithm:
+                print(f"Impossible to solve restoration step. Current iterate = {Y[:,0]}")
+                break
+                
             if self.is_trqp_compatible:
                 print(f"TRQP Compatible")
                 fy_next, v_next = self.run_single_simulation(y_next)
@@ -256,6 +273,7 @@ class TrustRegionSQPFilter():
                             print(f"Not good enough model")
                             radius = self.constants['gamma_1']*radius
                             Y = Y*1
+                            # Y = self.change_point(self.models, Y, y_next, radius, 'improve_model')
 
                         else:
                             print(f"Good enough model")
@@ -292,11 +310,5 @@ class TrustRegionSQPFilter():
                 _ = self.filter_SQP.add_to_filter((fy_curr, v_curr))
                 
                 Y = self.change_point(self.models, Y, y_next, radius, 'improve_model')
-                # shift = y_next - Y[:,0]
-                # print(f"shift = {shift}")
-                
-                # print(f"before = {Y}")
-                # Y = Y + shift[:,np.newaxis]          
-                # print(f"after = {Y}")            
-                    
+                             
         pass

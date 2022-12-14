@@ -24,6 +24,7 @@ class TRQP():
 
         ubg = []
         lbg = []
+        
         # Equality constraints
         eqcs = ca.vertcat(*[m.model.model_polynomial.symbol for m in models.m_eqcs.models])
         jc_eqcs = ca.jacobian(eqcs, input_symbols)
@@ -75,21 +76,12 @@ class TRQP():
         except TRQPIncompatible:
             sol, radius = self.invoke_restoration_step(models, radius)
             is_compatible = False
-            
-        # is_compatible = True
-        # if not solver.stats()['success']:
-        #     print(f"fail with center as initial point")
-        #     sol = solver(x0=center+(radius/10), ubg=ubg, lbg=lbg)
-        #     if not solver.stats()['success']:
-        #         sol, radius = self.invoke_restoration_step(models, radius)
-        #         is_compatible = False
 
         return sol['x'], radius, is_compatible
 
     def invoke_restoration_step(self, models:ModelManager, radius:float):
         
         print(f"Invoke restoration step")
-        # radius = 2*radius
         ubg = [radius]
         lbg = [0]
         
@@ -97,22 +89,20 @@ class TRQP():
         data = models.m_cf.model.y
         center = data[:,0]
             
+        # TODO: Maybe just go for equality feasibility first
         nlp = {
             'x': input_symbols,
             'f': models.m_viol.symbol,
             'g': ca.norm_2(center - input_symbols)
         }
         
-        # opts = {'ipopt.print_level':0, 'print_time':0}
+        opts = {'ipopt.print_level':0, 'print_time':0}
         
-        opts = dict()
         solver = ca.nlpsol('TRQP_restoration', 'ipopt', nlp, opts)
-        sol = solver(x0=center, ubg=ubg, lbg=lbg)
-        print(f"solver.stats()['success'] = {solver.stats()['success']}")
+        sol = solver(x0=center+(radius/100), ubg=ubg, lbg=lbg)
         if solver.stats()['success']:
             pass
         else:
-            print(f"HAAAAA")
             raise EndOfAlgorithm(f"Impossible to compute restoration step. current iterate: {center}")
         
         return sol, radius
