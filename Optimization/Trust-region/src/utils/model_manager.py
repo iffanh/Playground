@@ -85,11 +85,11 @@ class ViolationModel():
         v = 0.0
         for m in m_eqcs.models:
             v = ca.fmax(v, ca.fabs(m.model.model_polynomial.symbol))
-        
+    
         for m in m_ineqcs.models:
-            v = ca.fmax(v, -m.model.model_polynomial.symbol)
+            v = ca.fmax(v, -m.model.model_polynomial.symbol) # original TODO: not ideal since the violation is only considered if it's larger than 0
             
-        self.symbol = ca.fmax(0, v)
+        self.symbol = v
         self.feval = ca.Function('Violation', [input_symbols], [self.symbol])
         
         self.violations = []
