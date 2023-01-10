@@ -194,7 +194,8 @@ class LagrangePolynomials:
 
         for i, lp in enumerate(lagrange_polynomials):
             
-            max_sol, feval = lp._find_max_given_boundary(x0=self.y[:,0], rad=rad, center=center)          
+            # max_sol, feval = lp._find_max_given_boundary(x0=self.y[:,0], rad=rad, center=center)  
+            max_sol, feval = lp._find_max_given_boundary(x0=center, rad=rad, center=center)          
             max_sols.append(max_sol)
             Lambdas.append(np.abs(feval))
             
