@@ -11,7 +11,6 @@ class FilterSQP():
     def add_to_filter(self, coordinate:Tuple[float, float]) -> bool:
         # coordinate is a combination of (OF, violation)
         
-        print(self.filters)
         self.filters.sort(key=lambda x: x[1])
         if len(self.filters) == 0:
             self.filters.append(coordinate)

@@ -98,7 +98,6 @@ class TRQP():
         
         opts = {'ipopt.print_level':0, 'print_time':0}
         
-        # opts = dict()
         solver = ca.nlpsol('TRQP_restoration', 'ipopt', nlp, opts)
         sol = solver(x0=center+(radius/100), ubg=ubg, lbg=lbg)
         if solver.stats()['success']:
