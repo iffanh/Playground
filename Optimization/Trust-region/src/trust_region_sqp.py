@@ -128,9 +128,11 @@ class TrustRegionSQPFilter():
         indices = list(range(self.violations.shape[0]))
         nearzero_viol = np.isclose(self.violations, 
                                    np.array([0.0 for i in range(self.violations.shape[0])]), 
-                                   atol=1E-5)
+                                   atol=1E+5)
 
-        # triples = list(zip(nearzero_viol, self.violations_ineq, fY_cf_list, indices))
+        # fY_cf_list = [-fy for fy in list(fY_cf)]
+        
+        # triples = list(zip(nearzero_viol, self.violations_ineq, self.fY_cf_list, indices))
         triples = list(zip(self.violations_eq, self.violations_ineq, self.fY_cf_list, indices))
         # triples = list(zip(fY_cf_list, self.violations_eq, self.violations_ineq, indices))
         triples.sort(key=lambda x:(x[0], x[1], x[2]), reverse=True)
@@ -233,6 +235,7 @@ class TrustRegionSQPFilter():
             y_curr = Y[:,0]
             
             iterates = dict()
+            iterates['iteration_no'] = k
             iterates['Y'] = Y
             iterates['fY'] = self.models.m_cf.model.f
             iterates['v'] = self.models.m_viol.violations
@@ -243,9 +246,7 @@ class TrustRegionSQPFilter():
             self.iterates.append(iterates)
             
             poisedness = self.models.m_cf.model.poisedness(rad=radius, center=Y[:,0])
-            print(f"poisedness = {poisedness.max_poisedness()}")
             if poisedness.max_poisedness() > self.constants['L_threshold']:
-                print(f"We have to fix the model")
                 sg = SetGeometry(input_symbols=self.input_symbols, Y=Y, rad=radius, L=self.constants['L_threshold'])
                 sg.improve_geometry()        
                 improved_model = sg.model
@@ -253,9 +254,8 @@ class TrustRegionSQPFilter():
                 Y = improved_model.y
             
             poisedness = self.models.m_cf.model.poisedness(rad=radius, center=Y[:,0])
-            print(f"poisedness after improvement = {poisedness.max_poisedness()}")
-            
             if k == 0:
+                
                 _fy = self.models.m_cf.model.f
                 _v = self.models.m_viol.violations
                 
@@ -264,20 +264,15 @@ class TrustRegionSQPFilter():
             
             try:
                 y_next, radius, self.is_trqp_compatible = self.solve_TRQP(models=self.models, radius=radius)
-                print(f"y_next = {y_next}")
             except EndOfAlgorithm:
                 print(f"Impossible to solve restoration step. Current iterate = {Y[:,0]}")
                 break
                 
             if self.is_trqp_compatible:
-                print(f"TRQP Compatible")
                 fy_next, v_next = self.run_single_simulation(y_next)
                 is_acceptable_in_the_filter = self.filter_SQP.add_to_filter((fy_next, v_next))
 
-                # is_acceptable_in_the_filter = True
                 if is_acceptable_in_the_filter:
-                    print(f"Acceptable in the filter")
-                    
                     v_curr = self.models.m_viol.feval(y_curr).full()[0][0]
                     
                     mfy_curr = self.models.m_cf.model.model_polynomial.feval(y_curr)
@@ -285,19 +280,13 @@ class TrustRegionSQPFilter():
                     fy_curr = self.models.m_cf.model.f[0]
                     
                     rho = (fy_curr - fy_next)/(mfy_curr - mfy_next)
-                    print(f"rho = {rho}")
                         
-                    if mfy_curr - mfy_next >= self.constants['kappa_vartheta']*(v_curr**2):
-                        print(f"With sufficient decrease")
-                        
+                    if mfy_curr - mfy_next >= self.constants['kappa_vartheta']*(v_curr**2): 
                         if rho < self.constants['eta_1']:
-                            print(f"Not good enough model")
                             radius = self.constants['gamma_1']*radius
                             Y = Y*1
 
                         else:
-                            print(f"Good enough model")
-                            
                             if rho >= self.constants['eta_2']:
                                 radius = radius*self.constants['gamma_2']
                                 Y = self.change_point(self.models, Y, y_next, radius, 'worst_point')
@@ -306,7 +295,6 @@ class TrustRegionSQPFilter():
                                 Y = self.change_point(self.models, Y, y_next, radius, 'improve_model')
                                 
                     else:
-                        print(f"No sufficient decrease")
                         self.filter_SQP.add_to_filter((fy_next, v_next))
                             
                         if rho >= self.constants['eta_2']:
@@ -319,12 +307,10 @@ class TrustRegionSQPFilter():
                     pass
                 
                 else:
-                    print(f"Not acceptable in the filter")
                     radius = self.constants['gamma_0']*radius
                     Y = Y*1
             
             else:
-                print(f"TRQP Incompatible")
                 fy_curr = self.models.m_cf.model.f[0]
                 v_curr = self.models.m_viol.feval(y_curr).full()[0][0]
                 _ = self.filter_SQP.add_to_filter((fy_curr, v_curr))
