@@ -29,18 +29,25 @@ class ModelImprovement:
         model_improvement_status['radius_changed'] = False
 
         for k in range(max_iter):
+            print(f"===={k}=====")
             # Algorithm 6.3
             poisedness = lpolynomials.poisedness(rad=rad, center=center)
             Lambda = poisedness.max_poisedness()
             
+            if poisedness.index == 0:
+                fr = poisedness.poisedness
+                n = 2
+                pindex = [fr.index(i) for i in sorted(fr, reverse=True)][n]
+                
             # if poisedness.index == 0:
-            #     fr = poisedness.poisedness
-            #     n = 2
-            #     pindex = [fr.index(i) for i in sorted(fr, reverse=True)][n]
+            #     pindex = 1
+                # L = L*2            
+            else:
+                pindex = poisedness.index
 
             # else:
             ## TODO: Any ideas on how to circumvent the replacement of the best point?
-            pindex = poisedness.index
+            # pindex = poisedness.index
                 
             if k == 0:
                 best_polynomial = lpolynomials
