@@ -46,13 +46,13 @@ class SubProblem:
 
         return res['x'].full()[:, 0]
     
-    
 class TrustRegion:
     def __init__(self, input_symbols, dataset, results, func:callable) -> None:
         
         self.input_symbols = input_symbols
         self.polynomial = LagrangePolynomials(input_symbols=input_symbols, pdegree=2)
         self.polynomial.initialize(v=dataset, f=results)
+        
         self.func = func
         self.sp = None
         
@@ -81,15 +81,15 @@ class TrustRegion:
         
         # Algorithm 10.3
         eta0 = 0.2
-        eta1 = 0.4
+        eta1 = 0.4 #
         gamma = 0.5
         gamma_inc = 1.2
-        eps_c = 0.5
-        # beta = 0.01 # For perturbed case
-        # mu = 0.1
-        beta = 2.0
-        mu = 12.0
-        omega = 0.8
+        eps_c = 0.05
+        beta = 0.01 # For perturbed case
+        mu = 0.1
+        # beta = 2.0
+        # mu = 12.0
+        omega = 0.5
         L = 1.2
         status_crit = 'Initializing'
         status_acc = 'Initializing'
@@ -166,11 +166,19 @@ class TrustRegion:
         if rho >= eta1:
         # if True:
             status = "Trial_point: Successful"
-            sort_ind = m.f.argsort(axis=0)
+            
+            sort_ind = sorted(range(len(m.poisedness(rad=rad, center=x0).poisedness)), key=m.poisedness(rad=rad, center=x0).poisedness.__getitem__, reverse=False)
+            if sort_ind[-1] == 0:
+              sort_ind = m.f.argsort(axis=0)  
+            
             _my = m.y[:, sort_ind]
             _mf = m.f[sort_ind]
             _my[:, -1] = x_opt
             _mf[-1] = func(x_opt)
+            
+            sort_ind2 = _mf.argsort(axis=0)
+            _mf = _mf[sort_ind2]
+            _my = _my[:, sort_ind2]
             
             m_inc = LagrangePolynomials(input_symbols=self.input_symbols, pdegree=2)
             m_inc.initialize(v=_my, f=_mf, sort_type="function", tr_radius=rad)
@@ -194,6 +202,7 @@ class TrustRegion:
         gradient = m_inc.gradient(x0)
         Hessian = m_inc.Hessian
         sigma_inc = self.find_sigma(gradient, Hessian)
+        
             
         return m_inc, rho, sigma_inc, status
     
@@ -204,21 +213,23 @@ class TrustRegion:
         
     def criticality_step(self, m_inc:LagrangePolynomials, func:callable, sigma_inc:float, eps_c:float, rad_inc:float, mu:float, beta:float, omega:float, L:float) -> Tuple[LagrangePolynomials, float]:
         # Step 1 of Algorithm 10.3
+        max_iter = 10
         if sigma_inc <= eps_c:
-            print(f"rad_inc = {rad_inc}, mu*sigma_inc = {mu*sigma_inc}")
             if rad_inc > mu*sigma_inc:
                 status = 'Criticality : Model improving'
                 rad = rad_inc*1
                 points_replaced = 0
                 radius_changed = False
                 sigma = sigma_inc*1
-                while rad > mu*sigma:
+                k = 1
+                while rad > mu*sigma and k < max_iter:
                     m, rad, sigma, im_status = self._model_improvement(m_inc, func, omega, L, mu, rad_inc)
-                    rad = np.min([rad_inc, np.max([rad, beta*sigma])])
-                    
                     points_replaced += im_status['points_replaced']
                     if im_status['radius_changed']:
                         radius_changed = True
+                    k += 1
+                
+                rad = np.min([rad_inc, np.max([rad, beta*sigma])])
                         
                 status += f" # points replaced : {points_replaced}, reduce radius = {radius_changed}"
             else:
@@ -234,7 +245,7 @@ class TrustRegion:
         
         return m, rad, sigma, status
     
-    def _model_improvement(self, lp:LagrangePolynomials, func:callable, omega:float, L:float, mu:float, rad:float, max_iter:int=10):
+    def _model_improvement(self, lp:LagrangePolynomials, func:callable, omega:float, L:float, mu:float, rad:float, max_iter:int=1):
         # Algorithm 10.4
         
         rad_k = rad*1
