@@ -29,7 +29,6 @@ class ModelImprovement:
         model_improvement_status['radius_changed'] = False
 
         for k in range(max_iter):
-            print(f"===={k}=====")
             # Algorithm 6.3
             poisedness = lpolynomials.poisedness(rad=rad, center=center)
             Lambda = poisedness.max_poisedness()
@@ -79,7 +78,6 @@ class ModelImprovement:
                 if is_new_point_a_duplicate:
                     break
                     
-
                 # copy values
                 new_y = lpolynomials.y*1
                 new_f = lpolynomials.f*1
