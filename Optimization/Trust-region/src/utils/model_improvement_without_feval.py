@@ -29,7 +29,7 @@ class ModelImprovement:
             poisedness = lpolynomials.poisedness(rad=rad, center=center)
             Lambda = poisedness.max_poisedness()
 
-            # else:
+
             ## TODO: Any ideas on how to circumvent the replacement of the best point?
             pindex = poisedness.index
             if pindex == 0:
@@ -81,7 +81,6 @@ class ModelImprovement:
                             break
                     if is_new_point_a_duplicate:
                         break
-                        
 
                     # copy values
                     new_y = lpolynomials.y*1

@@ -40,6 +40,7 @@ class FilterSQP():
                         pass
                     else:
                         curr_filter.append(coord)
+                        is_acceptable = True
                 
             self.filters = curr_filter
         

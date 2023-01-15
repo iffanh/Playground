@@ -6,12 +6,17 @@ class SimulationManager():
         self.cf = CostFunction(func=cf)
         
         pass
-
+    
 class CostFunction():
     def __init__(self, func:callable) -> None:
-        self.func = func
+        self.number_of_function_calls = 0
+        self._func = func
         pass
-
+    
+    def func(self, Y):
+        self.number_of_function_calls += 1
+        return self._func(Y)
+    
     def __str__(self) -> str:
         return f"CostFunction(func = {self.func})"
 

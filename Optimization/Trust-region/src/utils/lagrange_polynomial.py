@@ -20,6 +20,7 @@ import casadi as ca
 from casadi import Function, SX, DM, mtimes, vertcat, horzcat
 
 from .generate_poised_sets import SampleSets
+from .TR_exceptions import PoisednessIsZeroException
 
 class PolynomialBase:
     def __init__(self, symbol, feval:callable) -> None:
@@ -205,7 +206,7 @@ class LagrangePolynomials:
                 index = i
             
         if Lambda == 0:
-            raise Exception(f"Poisedness (Lambda) is 0. Something is wrong.")
+            raise PoisednessIsZeroException(f"Poisedness (Lambda) is 0. Something is wrong.")
         
         return Poisedness(index, max_sols, Lambdas)
     

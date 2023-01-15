@@ -13,3 +13,10 @@ class EndOfAlgorithm(Exception):
     1. restoration phase is impossible to compute
     """
     pass
+
+class PoisednessIsZeroException(Exception):
+    "Raise when, yeah, poisedness is zero. Usually because of duplicated points"
+    pass
+
+class SolutionFound(Exception):
+    pass

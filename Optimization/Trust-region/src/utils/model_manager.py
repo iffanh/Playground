@@ -87,7 +87,7 @@ class ViolationModel():
             v = ca.fmax(v, ca.fabs(m.model.model_polynomial.symbol))
     
         for m in m_ineqcs.models:
-            v = ca.fmax(v, -m.model.model_polynomial.symbol) # original TODO: not ideal since the violation is only considered if it's larger than 0
+             v = ca.fmax(v, ca.fmax(0, -m.model.model_polynomial.symbol)) # TODO:ADHOC
             
         self.symbol = v
         self.feval = ca.Function('Violation', [input_symbols], [self.symbol])
@@ -97,7 +97,6 @@ class ViolationModel():
             self.violations.append(self.feval(Y[:,i]).full()[0][0])
             
         self.violations = np.array(self.violations)
-
 
 class ModelManager():
     """

@@ -21,34 +21,46 @@ class TRQP():
 
         # Cost function
         cf = models.m_cf.model.model_polynomial.symbol
-
+        
         ubg = []
         lbg = []
         
+        g = []
+        
         # Equality constraints
-        eqcs = ca.vertcat(*[m.model.model_polynomial.symbol for m in models.m_eqcs.models])
-        jc_eqcs = ca.jacobian(eqcs, input_symbols)
-        eqcs_c = ca.Function('c_E', [input_symbols], [eqcs]) # equality constraint at center
-        jc_eqcs_c = ca.Function('A_E', [input_symbols], [jc_eqcs]) # jacobian of equality constraint at center
-        
-        g_eq = ca.simplify(eqcs_c(center) + ca.mtimes(jc_eqcs_c(center), input_symbols - center))
-        for _ in range(len(models.m_eqcs.models)):
-            ubg.append(0.)
-            lbg.append(0.)
+        if len(models.m_eqcs.models) == 0:
+            pass
+        else:
+            eqcs = ca.vertcat(*[m.model.model_polynomial.symbol for m in models.m_eqcs.models])
+            jc_eqcs = ca.jacobian(eqcs, input_symbols)
+            eqcs_c = ca.Function('c_E', [input_symbols], [eqcs]) # equality constraint at center
+            jc_eqcs_c = ca.Function('A_E', [input_symbols], [jc_eqcs]) # jacobian of equality constraint at center
+            
+            g_eq = ca.simplify(eqcs_c(center) + ca.mtimes(jc_eqcs_c(center), input_symbols - center))
+            g.append(g_eq)
+            for _ in range(len(models.m_eqcs.models)):
+                ubg.append(0.)
+                lbg.append(0.)
 
+            
         # Inequality constraints
-        ineqcs = ca.vertcat(*[m.model.model_polynomial.symbol for m in models.m_ineqcs.models])
-        jc_ineqcs = ca.jacobian(ineqcs, input_symbols)
-        ineqcs_c = ca.Function('c_I', [input_symbols], [ineqcs]) # inequality constraint at center
-        jc_ineqcs_c = ca.Function('A_I', [input_symbols], [jc_ineqcs]) # jacobian of inequality constraint at center
+        if len(models.m_ineqcs.models) == 0:
+            pass
+        else:
+            ineqcs = ca.vertcat(*[m.model.model_polynomial.symbol for m in models.m_ineqcs.models])
+            jc_ineqcs = ca.jacobian(ineqcs, input_symbols)
+            ineqcs_c = ca.Function('c_I', [input_symbols], [ineqcs]) # inequality constraint at center
+            jc_ineqcs_c = ca.Function('A_I', [input_symbols], [jc_ineqcs]) # jacobian of inequality constraint at center
         
-        g_ineq = ca.simplify(ineqcs_c(center) + ca.mtimes(jc_ineqcs_c(center), input_symbols - center))
-        for _ in range(len(models.m_ineqcs.models)):
-            ubg.append(ca.inf)
-            lbg.append(0.)
-
+            g_ineq = ca.simplify(ineqcs_c(center) + ca.mtimes(jc_ineqcs_c(center), input_symbols - center))
+            g.append(g_ineq)
+            for _ in range(len(models.m_ineqcs.models)):
+                ubg.append(ca.inf)
+                lbg.append(0.)
+                
         # tr radius constraints
         g_r = ca.norm_2(input_symbols - center)
+        g.append(g_r)
         ubg.append(radius)
         lbg.append(0.)
 
@@ -56,7 +68,7 @@ class TRQP():
         nlp = {
             'x': input_symbols,
             'f': cf, 
-            'g': ca.vertcat(g_eq, g_ineq, g_r)
+            'g': ca.vertcat(*g)
         }
 
         opts = {'ipopt.print_level':0, 'print_time':0}
@@ -67,7 +79,6 @@ class TRQP():
 
         is_compatible = True
         try:
-            # print(solver.stats())
             if not solver.stats()['success']:
                 print(f"fail with center as initial point")
                 sol = solver(x0=center+(radius/100), ubg=ubg, lbg=lbg)
@@ -82,14 +93,13 @@ class TRQP():
     def invoke_restoration_step(self, models:ModelManager, radius:float):
         
         print(f"Invoke restoration step")
-        ubg = [radius]
+        ubg = [2*radius]
         lbg = [0]
         
         input_symbols = models.input_symbols
         data = models.m_cf.model.y
         center = data[:,0]
             
-        # TODO: Maybe just go for equality feasibility first
         nlp = {
             'x': input_symbols,
             'f': models.m_viol.symbol,
